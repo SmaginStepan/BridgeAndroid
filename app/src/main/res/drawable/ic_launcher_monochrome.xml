@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Alpha-only club outline and lettering for Android themed icons. -->
+    <item android:left="6dp" android:top="6dp" android:right="6dp" android:bottom="6dp">
+        <bitmap android:src="@drawable/pref_icon_themed" android:gravity="fill" />
+    </item>
+</layer-list>

@@ -1,0 +1,148 @@
+# Bridge Game — Basic Design (draft 0.1)
+
+Status: early draft. Items marked **[OPEN]** are not decided yet.
+
+## 1. Vision
+A "sport" bridge game built on top of the existing Preferans game. The Preferans code, UI, accounts and
+online/async infrastructure are reused as much as possible. Solo developer, so the first version must be
+fast and cheap to build.
+
+## 2. Product pillars (long term)
+1. Offline play against strong bots (bots play as opponents AND as partner).
+2. Sport mode with seasons (same deals for everyone, like in Preferans).
+3. Online play with other players, asynchronous with confirmation / auto-confirmation.
+4. Several contracts/rule sets and several bidding systems (called "negotiation" in early notes).
+5. Later: simple builder for a player's own bidding system.
+
+## 3. Scope of version 1 (MVP)
+- Single-player seasons only (human + bot partner vs. two bots).
+- Season length: one month. Fixed set of deals per season, identical for all players.
+- Most widespread rules: standard contract bridge, **duplicate** format (see 5).
+- One or two basic bidding systems (recommended: Standard American / SAYC). More added later.
+- No custom bidding builder. No complex anti-cheat.
+
+Out of scope for v1: online play, bidding-system builder, rubber/Chicago formats, tournaments with live tables.
+
+## 4. Core rules summary (what the engine must implement)
+- 4 players, 2 fixed partnerships (North–South, East–West), 52 cards, 13 each, no talon.
+- Auction: pass / bid (level 1–7 + suit or No Trump) / double / redouble. Ends after 3 passes following a bid.
+  Suit rank: clubs < diamonds < hearts < spades < no trump.
+- Contract = last bid. Declarer = first player of the winning side to name that suit. Partner becomes dummy
+  (hand shown face up after the opening lead; declarer plays both hands). Left-hand opponent leads.
+- Trick play: must follow suit; trump = contract suit (none in No Trump).
+- Scoring: trick points, game / partscore / slam bonuses, overtricks, undertrick penalties, doubled/redoubled
+  values, vulnerability. A board is dealt with fixed dealer + vulnerability from a standard 16-board cycle.
+
+## 5. Sport format
+- **Duplicate bridge**: every deal is played at many tables and results are compared. This removes luck of the
+  deal and matches the "same deals for everyone" season idea.
+- Scoring for comparison: **Matchpoints** (recommended for v1; simpler). IMPs possible later.
+- **[OPEN] Single-player comparison baseline**: with no other humans in v1, the player's result on each board
+  must be compared to something. Options: (a) results of other real players who played the same board
+  (needs a server), (b) a "field" of bot results precomputed per board, (c) double-dummy par score.
+  Recommendation: start with (b), keep (a) possible.
+
+## 6. Bots
+- Card play: strong play is realistic with a double-dummy / Monte-Carlo approach (open-source solvers exist).
+- Bidding: the hardest part. Bots must follow the chosen bidding system consistently, because the human
+  partner must be able to understand their bids. Start with one simple system.
+- **[OPEN]** Write own bot, or integrate an existing open-source engine (license check needed).
+
+## 7. Reuse from Preferans
+Sources found in `C:\Old` (inspected briefly, not yet in depth):
+- `PrefAndroid` — Kotlin + Jetpack Compose, package `com.an0obIs.pref` (GitHub: SmaginStepan/PrefAndroid).
+  Folders: `model` (Game, Deal, Season, SeasonRandom, scores), `ai` (bots), `mp` (host session, protocol),
+  `net` (LobbyClient, ScoreClient), `monetization` (ads, billing), `ui`.
+- `PrefiOS` — Swift/SwiftUI port; `PrefEngine` is a pure-Swift engine translated verbatim from Kotlin.
+- `Pref60` — original 2011 Windows Phone C# app (historical).
+- `PrefServer` — Node/TypeScript WebSocket relay. The server knows nothing about the game: the **host
+  device runs the engine**, the server only seats players and relays opaque JSON.
+- `ScoreServer` (+ `ScoreClientUnity`) — multi-game leaderboard/seasons service. Already designed for
+  bridge: a season has a JSON payload that can carry duplicate deals, deals can be private (fetched one
+  by one, access logged = anti-peek audit trail). New game = one CLI command, no redeploy.
+
+Reuse plan:
+- **Seasons**: deterministic shared deals from a server seed (`SeasonRandom`: SHA-256 + SplitMix64, identical
+  on all platforms) and seeded bots. Fits duplicate bridge directly. Reuse as is.
+- **Score boards, accounts, purchases, ads**: reuse ScoreServer and the monetization code.
+- **Online**: reuse PrefServer relay and host-authoritative model (needs 4 seats instead of 3-4; partnership).
+- **UI**: Compose table, card sprites, animations, settings, tutorials, localization (en/es/ru).
+- **Platforms**: Android first (Kotlin). iOS port later, following the same verbatim-port approach.
+- **New work**: partnerships, dummy, bridge auction and scoring, matchpoint comparison, bridge bots.
+- **Already live in Preferans 2.2.0** (Android + iOS, Nov 2026): monthly seasons, interstitial ads after
+  single-player deals, one-time "remove ads" purchase, Google UMP consent, privacy page with data deletion,
+  ScoreServer at scores.preferansmaster.com, relay at preferansmaster.com. Bridge can reuse all of it as
+  another game on the same servers (new game id on ScoreServer). Store listing must not claim "no ads".
+- **Known Preferans multiplayer issues to fix before reusing online code for bridge**: iOS reconnect loop
+  ("replaced") after Back; Android guest-left keeps the seat ("Reconnecting"); Back never leaves a room;
+  4-player table and "host leaves" were never tested (bridge needs 4 seats).
+- **Not reusable**: Preferans AI (misere, raspasy, etc.) — bridge needs its own bidding and play logic.
+
+## 8. Online play (later)
+- Asynchronous, like Preferans: move with confirmation and auto-confirmation after a timeout.
+- Anti-cheat for v1/v2: "impossible by game design" (hidden hands never sent to other clients; no in-game
+  chat that can reveal cards). **[OPEN]** Whether to allow free chat.
+
+## 9. Bidding system builder (later)
+- Must be as simple as possible. Idea to refine later: a convention card with a few selectable options
+  (e.g. 5-card majors, strong or weak NT range) before any free-form rule editor.
+
+## 10. Code review of the Preferans copy (2026-11-07, subagent review, partly verified)
+Summary: the **infrastructure** is reusable; the **game core, AI and table UI** must be rewritten.
+- Engine (`model/Game.kt`): synchronous state machine (`GamePhase`, `next()`), bots plug in via `AI.makeMove`.
+  `turnController()` already means "someone else plays the cards of the seat in turn" (whister plays the
+  passer's cards in open games) — this is almost exactly declarer-plays-dummy.
+- "3 players" is hard-coded almost everywhere (Game, Deal, Calculation, RemoteViews, TableLayout, ~20 AI files).
+  The existing 4-player mode is a 3-player engine with a sitting-out dealer, so the engine never ran with
+  4 real seats and the 4-seat room code is partly untested.
+- Reusable as is: Card/Hand, seeding (`SeasonRandom` — SHA-256 + SplitMix64), Seasons/ScoreClient/SeasonScreen,
+  LobbyClient + protocol (rules are opaque JSON), relay server (already allows 3 or 4 seats; no teams —
+  partnership = seat parity), storage, settings, localization infrastructure, ads/billing, animation machinery,
+  HostGameSession skeleton (pump, confirm stops, broadcast).
+- Rewrite: phases (Bidding, opening lead, dummy reveal, play, score), Bid (level + denomination + pass/X/XX),
+  contract/declarer, scoring (replaces Calculation/GlobalScores/HighScores), matchpoint comparison, all AI,
+  TableLayout for 4 seats with 13 cards per hand, RemoteViews/GameMsg for 4 seats and dummy.
+- Delete: all of `ai/` (~4900 lines), `ui/calc/*`, Agreements, raspasy/miser/prikup/vist code, Pref tutorials and
+  dictionary, Pref rule texts, the 3-to-4-player remapping.
+- Dummy: `RemoteViews` already shows a hand face up when `isVisible` is set; set it on the dummy hand only after
+  the opening lead. Declarer's client receives the "ask" for dummy's cards (`turnController`). Never send the
+  partner's hand in snapshots. Card taps on the dummy must be accepted for declarer (currently rejected).
+- Suit order: Preferans codes are 0=S 1=C 2=D 3=H 4=NT; bridge order is C<D<H<S<NT — define a separate rank.
+- Missing card art: 2–6 of each suit (20 images). Table UI is a fixed 480x716 canvas; full rewrite needed.
+- **Security**: `net/ScoreClient.kt` has the ScoreServer API key and HMAC secret hard-coded (also in git
+  history of the clone). Bridge needs its **own game id and keys** on ScoreServer, and secrets should not be
+  committed. New applicationId also needs new AdMob / Play / App Store setup.
+- Build: AGP 8.13, Kotlin 2.2.20, Compose BOM 2025.09, minSdk 26, target 36; 11 unit tests (JUnit4) as a template.
+
+## 11. Roadmap (revised)
+1. **DONE (2026-11-07)** Fork cleanup: package/applicationId = `com.an0obis.bridge`, fresh git repo (no Pref
+   history, nothing committed yet), Preferans AI/calc/game/mp/season code deleted, ScoreServer key and secret
+   moved to `scoreApiKey` / `scoreSecret` in `~/.gradle/gradle.properties` (BuildConfig), game id `bridge`.
+   Skeleton builds; menu has placeholders (Solo, Season, Online, Remove ads, Rate, Privacy, About).
+   New `model/Cards.kt` (Suit, Card, Hand, Seat, Deck.deal) with unit tests.
+   Leftovers for later: ~300 unused Preferans strings in `res/values*`, launcher icon, `assets/img` and
+   `assets/cards` (needs 2–6), Play/AdMob/IAP setup for the new app id, ScoreServer registration of game `bridge`,
+   `LobbyClient`/`Protocol` still mirror the 3-4 seat Preferans relay.
+2. **DONE (2026-11-07)** Pure-Kotlin bridge engine in `model/` (no Android): `Cards.kt` (deck, seeded deal),
+   `Auction.kt` (calls, legality, end, contract, declarer), `Play.kt` (tricks, follow suit, dummy control and
+   visibility), `Scoring.kt` (duplicate scoring, 16-board cycle, matchpoint percentage). 17 unit tests pass.
+   Not yet covered: bot players, game loop (`Game` state machine), saving a game, claims/concessions, revoke rules.
+3. **Bot + game loop DONE (2026-11-07)**: `BoardGame` (auction -> play -> result, `runBots` stops when a human
+   must act), `BotView` (only what a player may legally see; declarer chooses for dummy), `Bot` interface and a
+   placeholder `BasicBot` (opens longest suit with 12+, raises partner, random card play). 300 boards simulated
+   in tests, deterministic from the season seed. **TODO**: 4-seat table UI in solo mode.
+4. Season layer: new game id, seeded deals, matchpoint comparison, leaderboard.
+5. Real bots: basic bidding system + double-dummy / Monte Carlo player (check solver licenses).
+6. Online async play: 4-seat host session, partnership seats, dummy visibility; fix known lobby issues.
+7. Strings (en/es/ru), tutorial, card art, store assets; second bidding system.
+8. Bidding-system builder (later).
+
+## 12. Open questions list
+- Decided: new project is a clone of PrefAndroid (C:\Old\BridgeAndroid), history kept, remote removed.
+- Reviewed: 4-seat partnership is a large change (see section 10). Confirm the roadmap order.
+- Package name / applicationId / app name for the bridge app.
+- Baseline for single-player matchpoints (section 5).
+- Which bidding system(s) first (SAYC recommended).
+- Own bot vs. existing open-source engine.
+- Boards per day / per season, and play-time limits.
+- Should the app teach beginners (tutorial, hints)? The author is a beginner in bridge himself.
