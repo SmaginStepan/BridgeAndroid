@@ -20,6 +20,7 @@ import com.an0obis.bridge.ui.BridgeTheme
 import com.an0obis.bridge.ui.MainMenuScreen
 import com.an0obis.bridge.ui.PlaceholderScreen
 import com.an0obis.bridge.ui.misc.AboutScreen
+import com.an0obis.bridge.ui.solo.SoloScreen
 import com.an0obis.bridge.ui.misc.openStorePage
 
 object Routes {
@@ -86,7 +87,7 @@ class MainActivity : AppCompatActivity() {
                     onAbout = { navController.navigate(Routes.ABOUT) }
                 )
             }
-            composable(Routes.SOLO) { PlaceholderScreen(getString(R.string.coming_soon)) }
+            composable(Routes.SOLO) { SoloScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.SEASON) { PlaceholderScreen(getString(R.string.coming_soon)) }
             composable(Routes.ONLINE) { PlaceholderScreen(getString(R.string.coming_soon)) }
             composable(Routes.ABOUT) {

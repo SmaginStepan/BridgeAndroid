@@ -83,6 +83,25 @@ Reuse plan:
 - Anti-cheat for v1/v2: "impossible by game design" (hidden hands never sent to other clients; no in-game
   chat that can reveal cards). **[OPEN]** Whether to allow free chat.
 
+## 8a. Training mode with a coach (idea from the author, 2026-11-07)
+Goal: the game teaches bridge while you play (the author is a beginner himself; most players of a new
+bridge app will be too). A coach comments on every bid and every card play, for the human AND for the bots.
+- **Coach levels** (setting): off / hint before my move / feedback after my move / full commentary.
+- **Bids**: each call has a meaning ("2♥ = 6-9 points, 3+ hearts"). After my call the coach says: matches the
+  system / better was X because ... Partner's and opponents' bids are explained on tap or automatically.
+- **Card play**: simple rules of thumb at first ("lead the 4th best of your longest suit", "second hand low",
+  "cover an honor with an honor", count winners/losers); later a double-dummy solver can flag a play that
+  costs a trick and show the better card.
+- **Puzzles**: "bid this hand" and "find the lead" quizzes with the same coach (like the quizzes in the chat
+  where the idea came up), possibly daily puzzles tied to seasons.
+- **Retry/undo** in training games, never in sport (season) games.
+- **Architecture consequence (important)**: the bidding system must be **data-driven**: a table of rules
+  (conditions on points/shape/auction -> call + explanation text in en/es/ru). The same table drives the bot's
+  choice, the coach's comments, the "what does this bid mean" popup, and later the player's own system
+  builder (section 9). So the SAYC bot should be written as rules with explanations, not as hard-coded `if`s.
+  The placeholder `BasicBot` will be replaced by that rule engine.
+- Training games do not count for the season leaderboard; sport games hide the coach.
+
 ## 9. Bidding system builder (later)
 - Must be as simple as possible. Idea to refine later: a convention card with a few selectable options
   (e.g. 5-card majors, strong or weak NT range) before any free-form rule editor.
@@ -130,9 +149,15 @@ Summary: the **infrastructure** is reusable; the **game core, AI and table UI** 
 3. **Bot + game loop DONE (2026-11-07)**: `BoardGame` (auction -> play -> result, `runBots` stops when a human
    must act), `BotView` (only what a player may legally see; declarer chooses for dummy), `Bot` interface and a
    placeholder `BasicBot` (opens longest suit with 12+, raises partner, random card play). 300 boards simulated
-   in tests, deterministic from the season seed. **TODO**: 4-seat table UI in solo mode.
+   in tests, deterministic from the season seed.
+   **Solo table screen DONE (2026-11-07)**: `ui/solo/` (SoloViewModel, SoloScreen, CardViews). Human = South,
+   bots = N/E/W; bidding box, auction grid, dummy face-up (text lines for W/E, tappable row for N), trick
+   compass with the last trick lingering, result dialog, next board. Cards use the Preferans art (`assets/cards`, 296x392 png); the missing 2-6 were generated in the same style (Times New Roman digit over the 7 card of each suit; redo by an artist later). Hands are shown as separate cards in 1-2 rows with wider gaps between suits, on the Preferans green cloth.
+   Checked by playing a full board on an emulator (screenshots), not yet on a phone. Not yet: coach, undo,
+   animations, landscape layout, tablets, accessibility labels.
 4. Season layer: new game id, seeded deals, matchpoint comparison, leaderboard.
-5. Real bots: basic bidding system + double-dummy / Monte Carlo player (check solver licenses).
+5. Real bots: **rule-table SAYC bidding with explanations** (see 8a) + double-dummy / Monte Carlo player
+   (check solver licenses). Then the coach / training mode on top of the same rule table.
 6. Online async play: 4-seat host session, partnership seats, dummy visibility; fix known lobby issues.
 7. Strings (en/es/ru), tutorial, card art, store assets; second bidding system.
 8. Bidding-system builder (later).
