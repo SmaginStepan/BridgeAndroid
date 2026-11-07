@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -102,18 +105,26 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
     Column(modifier = Modifier.fillMaxSize().background(Felt).paint(cloth, contentScale = ContentScale.Crop)) {
         InfoBar(s)
 
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = 2.dp)) {
-                NorthSeat(s, vm::onCard)
-            }
-            Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 6.dp)) {
-                SideSeat(s, Seat.WEST)
-            }
-            Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp)) {
-                SideSeat(s, Seat.EAST)
-            }
-            Box(modifier = Modifier.align(Alignment.Center)) {
-                if (s.phase == Phase.AUCTION) AuctionGrid(s) else TrickArea(s.trick)
+        if (s.phase == Phase.AUCTION) {
+            // the auction: a scrollable list of the calls made so far fills the middle
+            AuctionList(
+                s,
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
+            )
+        } else {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = 2.dp)) {
+                    NorthSeat(s, vm::onCard)
+                }
+                Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 6.dp)) {
+                    SideSeat(s, Seat.WEST)
+                }
+                Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp)) {
+                    SideSeat(s, Seat.EAST)
+                }
+                Box(modifier = Modifier.align(Alignment.Center)) {
+                    TrickArea(s.trick)
+                }
             }
         }
 
@@ -130,7 +141,8 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
 
         Box(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
             when (s.phase) {
-                Phase.AUCTION -> BiddingBox(s.legalCalls, s.humanToAct, vm::onCall)
+                // the bidding grid appears only on the player's turn
+                Phase.AUCTION -> if (s.humanToAct) BidGrid(s.legalCalls, vm::onCall) else StatusLine(s)
                 Phase.PLAY -> StatusLine(s)
                 Phase.DONE -> Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -268,38 +280,44 @@ private fun TrickArea(trick: List<Pair<Int, Card>>) {
     }
 }
 
+/** The calls made so far, one column per seat; the header stays put and the rows scroll. */
 @Composable
-private fun AuctionGrid(s: TableState) {
-    val cellWidth = 52.dp
+private fun AuctionList(s: TableState, modifier: Modifier = Modifier) {
     val cells: List<Call?> = List<Call?>(s.dealer) { null } + s.calls
+    val scroll = rememberScrollState()
+    // keep the newest call in view
+    LaunchedEffect(s.calls.size, scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
     Column(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(Color(0x33000000))
             .padding(8.dp)
     ) {
-        Row {
+        Row(modifier = Modifier.fillMaxWidth()) {
             for (seat in Seat.NORTH..Seat.WEST) {
                 Text(
                     text = seatLetter(seat),
                     color = if (seat == s.turnSeat) AccentGold else LabelColor,
                     fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.width(cellWidth)
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
-        cells.chunked(4).forEach { row ->
-            Row {
-                for (i in 0 until 4) {
-                    val call = row.getOrNull(i)
-                    Text(
-                        text = if (call == null) AnnotatedString("") else callText(call),
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.width(cellWidth)
-                    )
+        Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll)) {
+            cells.chunked(4).forEach { row ->
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    for (i in 0 until 4) {
+                        val call = row.getOrNull(i)
+                        Text(
+                            text = if (call == null) AnnotatedString("") else callText(call),
+                            color = Color.White,
+                            fontSize = 22.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -333,7 +351,7 @@ private fun BidKey(
     val shape = RoundedCornerShape(6.dp)
     Box(
         modifier = modifier
-            .height(40.dp)
+            .height(44.dp)
             .clip(shape)
             .background(if (enabled) Color.White else Color(0x44FFFFFF))
             .border(if (selected) 3.dp else 1.dp, if (selected) AccentGold else Color(0xFF888888), shape)
@@ -344,49 +362,39 @@ private fun BidKey(
     }
 }
 
-/** Pick a level, then a denomination; or pass / double / redouble. Only legal calls are enabled. */
+/**
+ * The one-tap bidding grid: a row per level that still has a legal bid, a column per denomination.
+ * Bids that are not legal in a shown row are dimmed. Pass, double and redouble sit underneath.
+ * Shown only on the player's turn, so [legal] is never empty.
+ */
 @Composable
-private fun BiddingBox(legal: Set<Call>, enabled: Boolean, onCall: (Call) -> Unit) {
-    var level by remember(legal) { mutableStateOf<Int?>(null) }
+private fun BidGrid(legal: Set<Call>, onCall: (Call) -> Unit) {
+    val levels = (1..7).filter { l -> legal.any { it is Call.Bid && it.level == l } }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (l in 1..7) {
-                BidKey(
-                    label = AnnotatedString(l.toString()),
-                    enabled = enabled && legal.any { it is Call.Bid && it.level == l },
-                    selected = level == l,
-                    modifier = Modifier.weight(1f)
-                ) { level = l }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (d in Suit.CLUBS..Suit.NO_TRUMP) {
-                val lv = level
-                BidKey(
-                    label = denominationText("", d, onTable = false),
-                    enabled = enabled && lv != null && Call.Bid(lv, d) in legal,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    if (lv != null) onCall(Call.Bid(lv, d))
+        for (level in levels) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                for (denom in Suit.CLUBS..Suit.NO_TRUMP) {
+                    val bid = Call.Bid(level, denom)
+                    BidKey(
+                        label = denominationText(level.toString(), denom, onTable = false),
+                        enabled = bid in legal,
+                        modifier = Modifier.weight(1f)
+                    ) { onCall(bid) }
                 }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             BidKey(
                 label = AnnotatedString(stringResource(R.string.bid_pass)),
-                enabled = enabled && Call.Pass in legal,
+                enabled = Call.Pass in legal,
                 modifier = Modifier.weight(2f)
             ) { onCall(Call.Pass) }
-            BidKey(
-                label = AnnotatedString("X"),
-                enabled = enabled && Call.Dbl in legal,
-                modifier = Modifier.weight(1f)
-            ) { onCall(Call.Dbl) }
-            BidKey(
-                label = AnnotatedString("XX"),
-                enabled = enabled && Call.Redbl in legal,
-                modifier = Modifier.weight(1f)
-            ) { onCall(Call.Redbl) }
+            BidKey(label = AnnotatedString("X"), enabled = Call.Dbl in legal, modifier = Modifier.weight(1f)) {
+                onCall(Call.Dbl)
+            }
+            BidKey(label = AnnotatedString("XX"), enabled = Call.Redbl in legal, modifier = Modifier.weight(1f)) {
+                onCall(Call.Redbl)
+            }
         }
     }
 }

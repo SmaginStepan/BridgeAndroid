@@ -153,6 +153,7 @@ Summary: the **infrastructure** is reusable; the **game core, AI and table UI** 
    **Solo table screen DONE (2026-11-07)**: `ui/solo/` (SoloViewModel, SoloScreen, CardViews). Human = South,
    bots = N/E/W; bidding box, auction grid, dummy face-up (text lines for W/E, tappable row for N), trick
    compass with the last trick lingering, result dialog, next board. Cards use the Preferans art (`assets/cards`, 296x392 png); the missing 2-6 were generated in the same style (Times New Roman digit over the 7 card of each suit; redo by an artist later). Hands are shown as separate cards in 1-2 rows with wider gaps between suits, on the Preferans green cloth.
+   **Bidding box = one-tap grid (concept A, chosen 2026-11-07)**: appears only on the human turn, shows a row per level that still has a legal bid, Pass/X/XX underneath; the middle of the screen is a scrollable list of the calls made so far, the human hand stays visible. Concept B (coach suggestions + "All bids") planned on top later.
    Checked by playing a full board on an emulator (screenshots), not yet on a phone. Not yet: coach, undo,
    animations, landscape layout, tablets, accessibility labels.
 4. Season layer: new game id, seeded deals, matchpoint comparison, leaderboard.
