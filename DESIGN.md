@@ -172,3 +172,25 @@ Summary: the **infrastructure** is reusable; the **game core, AI and table UI** 
 - Own bot vs. existing open-source engine.
 - Boards per day / per season, and play-time limits.
 - Should the app teach beginners (tutorial, hints)? The author is a beginner in bridge himself.
+
+## 13. SAYC-lite bidding (built 2026-11-07)
+Code: `model/sayc/` (`Bidding.kt` framework, `SaycRules.kt` rule table, `Sayc.kt` fallback + `SaycBot` + `explain`).
+- **Rule table** (data-like): each `Rule` = id, call, HCP range, suit-length needs, balanced flag, situation
+  (a function of the auction), extra choosing conditions. Order = priority. The same table chooses the bot's call
+  AND explains any call (`Sayc.explain`), so bot and coach can never disagree.
+- **Covered**: opening bids (1-suit 5-card majors/better minor, 1NT 15-17, 2NT 20-21, strong 2C with waiting/positive
+  responses, weak twos, 3-level preempts), responses to 1-suit (raises, new suits, 2/1, 1NT/2NT/3NT), responses to
+  1NT (Jacoby transfers, Stayman, invites, 3NT, simplified slam) with opener answers, opener rebids, overcalls
+  (suit, 1NT), takeout doubles and answers, raising partner's overcall.
+- **Fallback** (`Fallback.decide`) for everything else: combined-points + fit logic using what partner's calls
+  promise (derived from the rule table): game at ~25 points (4M / 3NT / 5m), invite at 23-24, compete with a fit,
+  game-forcing after 2C.
+- **UI**: tap any call in the auction list to see what it means (text in en/ru/es: `sayc_<ruleId>` strings kept by
+  `res/raw/keep.xml`, ranges like "12-21 points . 5+ H").
+- **Checked**: 48 unit tests incl. 2000 simulated boards (about 3% passed out, 60% part-scores, 37% games, no slams
+  worth mentioning, never an illegal call). 25 sample auctions reviewed by eye: plausible.
+- **Known gaps (next steps)**: Blackwood/Gerber and slam bidding, negative doubles, penalty doubles, 2/1 game
+  force follow-ups, Michaels/Unusual NT, responses when opponents interfere beyond the basics, 4th-seat/balancing
+  rules, preempt responses, texas transfers, minor-suit Stayman, Jacoby 2NT, splinters, game-try bids.
+  Games are a little too frequent (37%); a real SAYC bot is much more careful about stopping in part-scores.
+- **Card play is still random** (`SaycBot.chooseCard`). The next big step is a real card-play engine.

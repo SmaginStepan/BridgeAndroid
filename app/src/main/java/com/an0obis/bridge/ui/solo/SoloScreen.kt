@@ -53,6 +53,8 @@ import com.an0obis.bridge.model.Phase
 import com.an0obis.bridge.model.Seat
 import com.an0obis.bridge.model.Suit
 import com.an0obis.bridge.model.Vulnerability
+import com.an0obis.bridge.model.sayc.Meaning
+import com.an0obis.bridge.model.sayc.Sayc
 import com.an0obis.bridge.ui.AccentGold
 
 private val Felt = Color(0xFF0B5D2E)
@@ -99,6 +101,7 @@ private fun denominationText(prefix: String, denom: Int, onTable: Boolean): Anno
 fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
     val s by vm.state.collectAsState()
     var showResult by remember(s.boardNumber) { mutableStateOf(true) }
+    var explainIndex by remember(s.boardNumber) { mutableStateOf<Int?>(null) }
 
     val context = LocalContext.current.applicationContext
     val cloth = remember { BitmapPainter(CardArt.cloth(context)) }
@@ -109,6 +112,7 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
             // the auction: a scrollable list of the calls made so far fills the middle
             AuctionList(
                 s,
+                onCallClick = { explainIndex = it },
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
             )
         } else {
@@ -155,6 +159,15 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
                 }
             }
         }
+    }
+
+    val explain = explainIndex
+    if (explain != null && explain in s.calls.indices) {
+        MeaningDialog(
+            call = s.calls[explain],
+            meanings = Sayc.explain(s.dealer, s.calls, explain),
+            onDismiss = { explainIndex = null }
+        )
     }
 
     val result = s.result
@@ -280,9 +293,70 @@ private fun TrickArea(trick: List<Pair<Int, Card>>) {
     }
 }
 
+/** The text for a bidding-system meaning, looked up by rule id (`sayc_<id>` string resources). */
+@Composable
+private fun meaningText(ruleId: String): String {
+    val context = LocalContext.current
+    val resId = context.resources.getIdentifier("sayc_$ruleId", "string", context.packageName)
+    return if (resId != 0) context.getString(resId) else stringResource(R.string.sayc_natural)
+}
+
+/** "12–21 points · 5+ ♥" */
+@Composable
+private fun rangesText(m: Meaning): String {
+    val parts = mutableListOf<String>()
+    val hcp = m.hcp
+    if (hcp != null && (hcp.first > 0 || hcp.last < 40)) {
+        val range = when {
+            hcp.last >= 40 -> "${hcp.first}+"
+            hcp.first == 0 -> "0–${hcp.last}"
+            hcp.first == hcp.last -> "${hcp.first}"
+            else -> "${hcp.first}–${hcp.last}"
+        }
+        parts.add(stringResource(R.string.sayc_pts, range))
+    }
+    for (n in m.needs) {
+        val symbol = suitSymbol(n.suit)
+        parts.add(
+            when {
+                n.min == 0 -> "≤${n.max} $symbol"
+                n.min == n.max -> "${n.min} $symbol"
+                n.max >= 13 -> "${n.min}+ $symbol"
+                else -> "${n.min}–${n.max} $symbol"
+            }
+        )
+    }
+    if (m.balanced == true) parts.add(stringResource(R.string.sayc_balanced))
+    return parts.joinToString(" · ")
+}
+
+/** What a call means under the bidding system, tapped from the auction list. */
+@Composable
+private fun MeaningDialog(call: Call, meanings: List<Meaning>, onDismiss: () -> Unit) {
+    val callLabel = if (call is Call.Pass) stringResource(R.string.bid_pass) else call.toString()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("$callLabel — " + stringResource(R.string.sayc_title), fontSize = 18.sp) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                for (m in meanings) {
+                    Column {
+                        Text(meaningText(m.ruleId))
+                        val ranges = rangesText(m)
+                        if (ranges.isNotEmpty()) {
+                            Text(ranges, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.sayc_close)) } }
+    )
+}
+
 /** The calls made so far, one column per seat; the header stays put and the rows scroll. */
 @Composable
-private fun AuctionList(s: TableState, modifier: Modifier = Modifier) {
+private fun AuctionList(s: TableState, onCallClick: (Int) -> Unit, modifier: Modifier = Modifier) {
     val cells: List<Call?> = List<Call?>(s.dealer) { null } + s.calls
     val scroll = rememberScrollState()
     // keep the newest call in view
@@ -306,16 +380,20 @@ private fun AuctionList(s: TableState, modifier: Modifier = Modifier) {
             }
         }
         Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll)) {
-            cells.chunked(4).forEach { row ->
+            cells.chunked(4).forEachIndexed { rowIndex, row ->
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                     for (i in 0 until 4) {
                         val call = row.getOrNull(i)
+                        val callIndex = rowIndex * 4 + i - s.dealer
                         Text(
                             text = if (call == null) AnnotatedString("") else callText(call),
                             color = Color.White,
                             fontSize = 22.sp,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.weight(1f)
+                            // tap a call to see what it means
+                            modifier = Modifier.weight(1f).then(
+                                if (call != null) Modifier.clickable { onCallClick(callIndex) } else Modifier
+                            )
                         )
                     }
                 }

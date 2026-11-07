@@ -2,7 +2,7 @@ package com.an0obis.bridge.ui.solo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.an0obis.bridge.model.BasicBot
+import com.an0obis.bridge.model.sayc.SaycBot
 import com.an0obis.bridge.model.BoardGame
 import com.an0obis.bridge.model.BoardResult
 import com.an0obis.bridge.model.Bot
@@ -71,7 +71,7 @@ class SoloViewModel : ViewModel() {
     private fun newGame(n: Int) = BoardGame(n, Deck.deal(SeasonRandom.forPurpose(seed, "deal", n)))
 
     private fun newBots(n: Int): List<Bot> =
-        List(4) { seat -> BasicBot(SeasonRandom.forPurpose(seed, "bots", n * 4 + seat)) }
+        List(4) { seat -> SaycBot(SeasonRandom.forPurpose(seed, "bots", n * 4 + seat)) }
 
     fun onCall(call: Call) {
         if (busy || game.phase != Phase.AUCTION || game.controller != human || !game.auction.isLegal(call)) return
