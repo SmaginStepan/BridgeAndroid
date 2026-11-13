@@ -8,12 +8,16 @@ import com.an0obis.bridge.model.Deck
 import com.an0obis.bridge.model.Hand
 import com.an0obis.bridge.model.Phase
 import com.an0obis.bridge.model.SeasonRandom
+import com.an0obis.bridge.model.Seat
 import com.an0obis.bridge.model.Suit
 import com.an0obis.bridge.model.play.Bits
+import com.an0obis.bridge.model.play.CardPlayer
 import com.an0obis.bridge.model.play.DoubleDummy
 import com.an0obis.bridge.model.play.Sim
+import com.an0obis.bridge.model.sayc.BidInference
 import com.an0obis.bridge.model.sayc.SaycBot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -61,6 +65,53 @@ class CardPlayTest {
         s.leader = 1
         // East's ace is ruffed by South (trick 1); South's ace of spades wins trick 2
         assertEquals(2, DoubleDummy.solve(s))
+    }
+
+    // ------------------------------------------------------------ the bidding as information
+
+    /** "AK5 KQ4 QJ52 Q103" = spades, hearts, diamonds, clubs. */
+    private fun hand(text: String): Hand {
+        val suits = listOf(Suit.SPADES, Suit.HEARTS, Suit.DIAMONDS, Suit.CLUBS)
+        val cards = mutableListOf<Card>()
+        text.trim().split(Regex("\\s+")).forEachIndexed { i, part ->
+            for (ch in part.replace("10", "T")) {
+                val rank = when (ch) { 'A' -> 14; 'K' -> 13; 'Q' -> 12; 'J' -> 11; 'T' -> 10; else -> ch.digitToInt() }
+                cards.add(Card(rank, suits[i]))
+            }
+        }
+        require(cards.size == 13) { "hand has ${cards.size} cards: $text" }
+        return Hand(cards)
+    }
+
+    @Test
+    fun anOpeningNoTrumpShowsAStrongBalancedHand() {
+        val inference = BidInference(Seat.NORTH, listOf(Call.Bid(1, Suit.NO_TRUMP)))
+        assertTrue(inference.plausible(Seat.NORTH, hand("AK5 KQ4 QJ52 Q103")))      // 17 balanced
+        assertFalse(inference.plausible(Seat.NORTH, hand("Q852 J63 K74 J85")))      // 7 points
+        assertFalse(inference.plausible(Seat.NORTH, hand("AKQJ75 K4 Q643 8")))      // unbalanced
+        assertTrue(inference.plausible(Seat.EAST, hand("Q852 J63 K74 J85")))        // no call by East: no information
+    }
+
+    @Test
+    fun aPassShowsAWeakHand() {
+        val inference = BidInference(Seat.NORTH, listOf(Call.Pass))
+        assertTrue(inference.plausible(Seat.NORTH, hand("Q852 J63 K74 J85")))
+        assertFalse(inference.plausible(Seat.NORTH, hand("AK5 KQ4 QJ52 Q103")))
+    }
+
+    @Test
+    fun theTrueHandsAlwaysFitTheirOwnBidding() {
+        // the check replays the system, so every hand must fit the calls it really made
+        for (board in 1..400) {
+            val hands = Deck.deal(SeasonRandom.forPurpose("inference", "deal", board))
+            val bots = List(4) { SaycBot(SeasonRandom.forPurpose("inference", "bots", board * 4 + it), 0) }
+            val game = BoardGame(board, hands)
+            while (game.phase == Phase.AUCTION) game.call(bots[game.controller].chooseCall(game.view()))
+            val inference = BidInference(game.dealer, game.auction.calls)
+            for (seat in 0..3) {
+                assertTrue("board $board seat $seat ${game.auction.calls}", inference.plausible(seat, hands[seat]))
+            }
+        }
     }
 
     // ------------------------------------------------------------ full boards
@@ -119,6 +170,38 @@ class CardPlayTest {
         }
         println("PLAY TIME decisions=$n avg=${sum / maxOf(n, 1)}ms worst=${worst}ms")
         assertTrue("too slow: $worst ms", worst < 1500)
+    }
+
+    @Test
+    fun readingTheBiddingHelps() {
+        var readTricks = 0
+        var blindTricks = 0
+        var edge = 0L
+        var boards = 0
+        val started = System.nanoTime()
+        for (board in 1..120) {
+            val hands = Deck.deal(SeasonRandom.forPurpose("play-bidding", "deal", board))
+            val bidder = List(4) { SaycBot(SeasonRandom.forPurpose("play-bidding", "bots", board * 4 + it), 0) }
+            val auction = BoardGame(board, hands)
+            while (auction.phase == Phase.AUCTION) auction.call(bidder[auction.controller].chooseCall(auction.view()))
+            val contract = auction.auction.contract ?: continue
+            val calls = auction.auction.calls
+
+            fun bots(readSide: Int) = List(4) { seat ->
+                SaycBot(SeasonRandom.forPurpose("play-bidding", "play$readSide", board * 4 + seat), 40, (seat and 1) == readSide)
+            }
+            val a = bots(0).let { b -> playOut(hands, board, calls) { b[it] } }   // north-south read the bidding
+            val b = bots(1).let { b -> playOut(hands, board, calls) { b[it] } }   // east-west read the bidding
+            fun ns(g: BoardGame) = g.result!!.declarerTricks.let { if ((contract.declarer and 1) == 0) it else 13 - it }
+            readTricks += ns(a) + (13 - ns(b))
+            blindTricks += ns(b) + (13 - ns(a))
+            edge += a.result!!.northSouthScore - b.result!!.northSouthScore
+            boards++
+        }
+        val ms = (System.nanoTime() - started) / 1_000_000
+        println("BIDDING READ boards=$boards readTricks=$readTricks blindTricks=$blindTricks avgScoreEdge=${edge / boards} time=${ms}ms")
+        println("BIDDING WORLDS matched=${CardPlayer.Stats.matchedWorlds} unmatched=${CardPlayer.Stats.unmatchedWorlds}")
+        assertTrue("reading the bidding must not hurt: $readTricks vs $blindTricks", readTricks >= blindTricks - boards / 4)
     }
 
     @Test

@@ -1,11 +1,18 @@
 package com.an0obis.bridge.model.play
 
 import com.an0obis.bridge.model.Card
+import com.an0obis.bridge.model.Hand
 
 /** Cards as bits: index = suit * 13 + (rank - 2), so a higher rank is a higher bit within a suit. */
 internal object Bits {
     fun idx(c: Card): Int = c.suit * 13 + (c.rank - 2)
     fun card(i: Int): Card = Card(i % 13 + 2, i / 13)
+    fun toHand(m: Long): Hand {
+        val cards = ArrayList<Card>(13)
+        var x = m
+        while (x != 0L) { cards.add(card(low(x))); x = x and (x - 1) }
+        return Hand(cards)
+    }
     fun suitOf(i: Int): Int = i / 13
     fun suitMask(s: Int): Long = 0x1FFFL shl (13 * s)
     fun bit(i: Int): Long = 1L shl i

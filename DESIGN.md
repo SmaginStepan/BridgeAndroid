@@ -215,3 +215,17 @@ Known limits:
 - No bluffing or deceptive plays; the declarer plays the best average line, not the best line against a clever defender.
 
 Next ideas: use the auction to bias the sampled hands (the SAYC rule table can say what a bid shows), standard defensive signals, a difficulty setting (worlds and exact depth).
+
+### 14a. The bidding as information (2026-11-13)
+
+`BidInference` (model/sayc) tells the sampler which hands are plausible for a seat: a hand is plausible if the bidding system, given that hand, would have made exactly the calls the seat made. It replays the rule table (and the fallback) for each call the seat made, so one mechanism covers every opening, response and also passes ("East passed" excludes strong hands). A call made in a position the rule table does not cover gives no information.
+
+The sampler deals the hidden hands (respecting voids), tests them with `BidInference`, and re-deals up to 150 times per world until every hand fits. If no deal fits (for example a human bid off-system) it falls back to a deal that only respects the voids, and after 3 failed worlds in a row without a success it stops trying for that decision.
+
+Measured (SaycBot, 40 worlds, 116-680 boards played from both sides):
+- The true hands always fit their own bidding (400 boards, all four seats), so the replay is exact.
+- About 94% of the sampled worlds fit the bidding; the rest are fallbacks.
+- Playing strength: no measurable difference in tricks (+12 tricks over 116 boards; exactly equal over 680 boards; score edge within +/-15 points per board). The bidding in SAYC-lite is mostly wide-range, and the rollout policy is simple, so extra knowledge about the hands rarely changes the chosen card.
+- Speed: average decision 4 ms, worst 608 ms (the 600 ms limit) on the desktop JVM.
+
+So the mechanism is correct and cheap, but it is not yet a visible gain. It should matter more with narrow bids (1NT, preempts, strong 2C), a better rollout policy, and in the coach mode (explaining "West must have the king for his bid").

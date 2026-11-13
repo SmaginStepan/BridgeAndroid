@@ -54,13 +54,13 @@ object Fallback {
         else -> bid.level >= 5
     }
 
-    fun decide(state: AuctionState, hand: HandInfo): Call {
+    /** [info] can be passed in when the same position is judged for many hands. */
+    fun decide(state: AuctionState, hand: HandInfo, info: PartnerInfo = partnerInfo(state)): Call {
         val auction = state.auction
         val last = auction.lastBid ?: return Call.Pass
         val lastBidder = auction.lastBidder ?: return Call.Pass
         val lastIsOurs = Seat.sameSide(lastBidder, state.seat)
 
-        val info = partnerInfo(state)
         val estimate = hand.hcp + info.expectedHcp
 
         val gameForced = state.weOpened && state.openingBid == Call.Bid(2, Suit.CLUBS) &&
@@ -151,8 +151,22 @@ object Sayc {
  */
 class SaycBot(
     private val rnd: DealRandom = DefaultRandom,
-    private val worlds: Int = 100
+    private val worlds: Int = 100,
+    /** Whether the sampled hands must fit what the bidding showed. */
+    private val readBidding: Boolean = true
 ) : Bot {
+
+    private var inferenceCalls: List<Call>? = null
+    private var inference: BidInference? = null
+
+    private fun inferenceFor(view: BotView): BidInference {
+        val calls = view.auction.calls
+        if (inferenceCalls != calls || inference == null) {
+            inference = BidInference(view.auction.dealer, calls)
+            inferenceCalls = calls
+        }
+        return inference!!
+    }
 
     override fun chooseCall(view: BotView): Call {
         val state = AuctionState(view.auction.dealer, view.auction.calls)
@@ -162,5 +176,8 @@ class SaycBot(
 
     override fun chooseCard(view: BotView): Card =
         if (worlds <= 0) view.legalCards[rnd.nextInt(view.legalCards.size)]
-        else CardPlayer.choose(view, rnd, worlds)
+        else CardPlayer.choose(
+            view, rnd, worlds,
+            plausible = if (readBidding) inferenceFor(view).let { inf -> { seat, hand -> inf.plausible(seat, hand) } } else null
+        )
 }

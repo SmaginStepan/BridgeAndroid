@@ -4,6 +4,7 @@ import com.an0obis.bridge.model.BotView
 import com.an0obis.bridge.model.Card
 import com.an0obis.bridge.model.DealRandom
 import com.an0obis.bridge.model.DefaultRandom
+import com.an0obis.bridge.model.Hand
 
 /**
  * Chooses a card by sampling: it deals the cards it cannot see to the hidden hands (respecting
@@ -18,11 +19,22 @@ object CardPlayer {
     /** With this many cards or fewer left in each hand the rest of the deal is solved exactly. */
     private const val EXACT_CARDS = 5
 
+    /** Counters for tests and tuning: how many sampled worlds fitted the bidding, and how many did not. */
+    object Stats {
+        @Volatile var matchedWorlds = 0L
+        @Volatile var unmatchedWorlds = 0L
+    }
+
+    /** Deals tried per sampled world to find hands that fit the bidding. */
+    private const val BIDDING_TRIES = 150
+
     fun choose(
         view: BotView,
         rnd: DealRandom = DefaultRandom,
         worlds: Int = 100,
-        timeLimitMs: Long = 600
+        timeLimitMs: Long = 600,
+        /** Whether a hand is plausible for a seat given the bidding (null: no such knowledge). */
+        plausible: ((seat: Int, hand: Hand) -> Boolean)? = null
     ): Card {
         val legalCards = view.legalCards
         if (legalCards.size == 1) return legalCards[0]
@@ -81,9 +93,22 @@ object CardPlayer {
         val minWorlds = minOf(8, worlds)
         val ns = view.tricks.count { (it.winner and 1) == 0 }
 
+        // if the bidding cannot be matched at all (say a human bid off-system), stop trying
+        var useBidding = plausible != null
+        var matched = 0
+        var unmatched = 0
+        val check: ((Int, Long) -> Boolean)? = plausible?.let { f -> { seat, m -> f(seat, Bits.toHand(m)) } }
+
         for (w in 0 until maxOf(1, worlds)) {
             if (w >= minWorlds && System.nanoTime() > deadline) break
-            val hands = deal(unknownSeats, handSize, unseenList, void, rnd)
+            val dealt = deal(unknownSeats, handSize, unseenList, void, rnd, if (useBidding) check else null)
+            val hands = dealt.hands
+            if (useBidding) {
+                if (dealt.matchedBidding) matched++ else unmatched++
+                if (matched == 0 && unmatched >= 3) useBidding = false
+                Stats.matchedWorlds += if (dealt.matchedBidding) 1 else 0
+                Stats.unmatchedWorlds += if (dealt.matchedBidding) 0 else 1
+            }
             val base = Sim(contract.denom, contract.declarer and 1)
             for (seat in 0..3) base.hands[seat] = if (known[seat]) mask[seat] else hands[seat]
             base.leader = view.trickLeader
@@ -130,16 +155,51 @@ object CardPlayer {
         return s.nsTricks
     }
 
-    /** Deals [pool] to [seats] (sizes in [size]) without giving anyone a suit they showed out of. */
+    private class Dealt(val hands: LongArray, val matchedBidding: Boolean)
+
+    /**
+     * Deals [pool] to [seats] (sizes in [size]) without giving anyone a suit they showed out of.
+     * With [plausible] it keeps dealing until every hand fits the bidding (up to [BIDDING_TRIES]
+     * deals); if none does, it returns a deal that only respects the voids.
+     */
     private fun deal(
         seats: List<Int>,
         size: IntArray,
         pool: List<Int>,
         void: Array<BooleanArray>,
-        rnd: DealRandom
-    ): LongArray {
+        rnd: DealRandom,
+        plausible: ((Int, Long) -> Boolean)?
+    ): Dealt {
+        if (seats.isEmpty()) return Dealt(LongArray(4), true)
+        var voidOnly: LongArray? = null
+        val tries = if (plausible == null) 1 else BIDDING_TRIES
+        repeat(tries) {
+            val one = dealRespectingVoids(seats, size, pool, void, rnd) ?: return@repeat
+            if (voidOnly == null) voidOnly = one
+            if (plausible == null || seats.all { plausible(it, one[it]) }) return Dealt(one, plausible != null)
+        }
+        return Dealt(voidOnly ?: dealIgnoringVoids(seats, size, pool), false)
+    }
+
+    private fun dealIgnoringVoids(seats: List<Int>, size: IntArray, pool: List<Int>): LongArray {
         val out = LongArray(4)
-        if (seats.isEmpty()) return out
+        val room = IntArray(4) { size[it] }
+        for (c in pool) {
+            val seat = seats.first { room[it] > 0 }
+            room[seat]--
+            out[seat] = out[seat] or Bits.bit(c)
+        }
+        return out
+    }
+
+    /** One random deal that gives nobody a suit they showed out of, or null if the voids clash. */
+    private fun dealRespectingVoids(
+        seats: List<Int>,
+        size: IntArray,
+        pool: List<Int>,
+        void: Array<BooleanArray>,
+        rnd: DealRandom
+    ): LongArray? {
         repeat(40) {
             val cards = pool.toMutableList()
             for (i in cards.size - 1 downTo 1) {
@@ -160,13 +220,6 @@ object CardPlayer {
             }
             if (ok) return result
         }
-        // the voids cannot be met (should not happen): deal without them
-        val room = IntArray(4) { size[it] }
-        for (c in pool) {
-            val seat = seats.first { room[it] > 0 }
-            room[seat]--
-            out[seat] = out[seat] or Bits.bit(c)
-        }
-        return out
+        return null
     }
 }
