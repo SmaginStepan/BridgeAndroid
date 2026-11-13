@@ -15,7 +15,9 @@ import com.an0obis.bridge.model.Phase
 import com.an0obis.bridge.model.SeasonRandom
 import com.an0obis.bridge.model.Seat
 import com.an0obis.bridge.model.Vulnerability
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -111,7 +113,9 @@ class SoloViewModel : ViewModel() {
                         game.call(bot.chooseCall(view))
                         publish()
                     } else {
-                        playAndShow(bot.chooseCard(view))
+                        // the card search is heavy: keep it off the main thread
+                        val card = withContext(Dispatchers.Default) { bot.chooseCard(view) }
+                        playAndShow(card)
                     }
                 }
             } finally {

@@ -8,6 +8,7 @@ import com.an0obis.bridge.model.DealRandom
 import com.an0obis.bridge.model.DefaultRandom
 import com.an0obis.bridge.model.Seat
 import com.an0obis.bridge.model.Suit
+import com.an0obis.bridge.model.play.CardPlayer
 
 /** What the partner's calls tell us so far. */
 class PartnerInfo(val minHcp: Int, val maxHcp: Int, val minLen: IntArray) {
@@ -143,8 +144,15 @@ object Sayc {
     }
 }
 
-/** A bot that bids by the SAYC-lite rule table. It plays random legal cards for now. */
-class SaycBot(private val rnd: DealRandom = DefaultRandom) : Bot {
+/**
+ * A bot that bids by the SAYC-lite rule table and plays by sampling the hidden hands
+ * ([CardPlayer]). [worlds] is how many sampled deals it weighs per card; 0 or less plays at
+ * random (fast, for tests).
+ */
+class SaycBot(
+    private val rnd: DealRandom = DefaultRandom,
+    private val worlds: Int = 100
+) : Bot {
 
     override fun chooseCall(view: BotView): Call {
         val state = AuctionState(view.auction.dealer, view.auction.calls)
@@ -152,5 +160,7 @@ class SaycBot(private val rnd: DealRandom = DefaultRandom) : Bot {
         return if (call in view.legalCalls) call else Call.Pass
     }
 
-    override fun chooseCard(view: BotView): Card = view.legalCards[rnd.nextInt(view.legalCards.size)]
+    override fun chooseCard(view: BotView): Card =
+        if (worlds <= 0) view.legalCards[rnd.nextInt(view.legalCards.size)]
+        else CardPlayer.choose(view, rnd, worlds)
 }

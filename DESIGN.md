@@ -194,3 +194,24 @@ Code: `model/sayc/` (`Bidding.kt` framework, `SaycRules.kt` rule table, `Sayc.kt
   rules, preempt responses, texas transfers, minor-suit Stayman, Jacoby 2NT, splinters, game-try bids.
   Games are a little too frequent (37%); a real SAYC bot is much more careful about stopping in part-scores.
 - **Card play is still random** (`SaycBot.chooseCard`). The next big step is a real card-play engine.
+
+## 14. Card play (built 2026-11-08)
+
+Code in `model/play/`. The bots now play the cards with a sampling player instead of at random.
+
+How a bot picks a card (`CardPlayer.choose`):
+1. It reads only its `BotView` (own hand, the dummy once exposed, the tricks so far), so it never sees a hidden hand.
+2. It deals the unseen cards to the hidden hands at random, respecting voids (a player who did not follow suit has none of that suit) and the number of cards each hand still holds. Up to 100 such "worlds" per decision (600 ms limit).
+3. For each legal card (equal cards, e.g. K and Q together, counted once) it plays the card in every world and finishes the deal:
+   - with 5 or fewer cards left in each hand, exactly (alpha-beta double-dummy search);
+   - earlier, with a quick rule-of-thumb policy (`Heuristic`): lead winners or the long suit, draw trumps as declarer, second hand low, third hand high, cover an honor, ruff when the opponents win, keep winners when discarding.
+4. It plays the card with the best average number of tricks for its side. When leading it plays the top of a sequence.
+
+Measured on the desktop JVM with 100 worlds: about 1 ms on average and 162 ms at worst (first calls, cold JIT). A phone is several times slower, so check there before adding more worlds or a deeper exact search. Against random card play, with the same 58 boards played from both sides, the sampling side took 67% of the tricks (1007 against 501).
+
+Known limits:
+- Rollouts use the heuristic policy, so early decisions are only as good as that policy.
+- No signals or leads by convention (no attitude/count signals, no "fourth best" reading), and no inference from the opponents' bidding (hands are sampled without using the auction).
+- No bluffing or deceptive plays; the declarer plays the best average line, not the best line against a clever defender.
+
+Next ideas: use the auction to bias the sampled hands (the SAYC rule table can say what a bid shows), standard defensive signals, a difficulty setting (worlds and exact depth).
