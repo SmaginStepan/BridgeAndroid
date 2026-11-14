@@ -35,6 +35,27 @@ android {
     val realAppId = providers.gradleProperty("admobAppId").orNull
     val realInterstitialId = providers.gradleProperty("admobInterstitialId").orNull
 
+    // Google Play upload key, kept outside the repo. In ~/.gradle/gradle.properties:
+    //   bridgeStoreFile=C:/path/to/the.keystore
+    //   bridgeStorePassword=...
+    //   bridgeKeyAlias=...
+    //   bridgeKeyPassword=...
+    // Without all four the release build is simply left unsigned.
+    val uploadStore = providers.gradleProperty("bridgeStoreFile").orNull
+    val uploadStorePassword = providers.gradleProperty("bridgeStorePassword").orNull
+    val uploadAlias = providers.gradleProperty("bridgeKeyAlias").orNull
+    val uploadKeyPassword = providers.gradleProperty("bridgeKeyPassword").orNull
+    signingConfigs {
+        if (uploadStore != null && uploadStorePassword != null && uploadAlias != null && uploadKeyPassword != null) {
+            create("release") {
+                storeFile = file(uploadStore)
+                storePassword = uploadStorePassword
+                keyAlias = uploadAlias
+                keyPassword = uploadKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("boolean", "ADS_ENABLED", "true")
@@ -46,6 +67,7 @@ android {
             buildConfigField("boolean", "ADS_ENABLED", adsReady.toString())
             buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"${realInterstitialId ?: testInterstitialId}\"")
             manifestPlaceholders["admobAppId"] = realAppId ?: testAppId
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
