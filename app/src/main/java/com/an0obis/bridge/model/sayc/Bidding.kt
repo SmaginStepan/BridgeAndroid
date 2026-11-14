@@ -7,11 +7,14 @@ import com.an0obis.bridge.model.Hand
 import com.an0obis.bridge.model.Seat
 
 /** What a bidder knows about their own hand: points, suit lengths, shape, honours. */
-class HandInfo(hand: Hand) {
+class HandInfo(hand: Hand, hcpShift: Int = 0) {
     val cards: List<Card> = hand.cards
 
-    /** High-card points: A=4, K=3, Q=2, J=1. */
-    val hcp: Int = hand.points
+    /**
+     * High-card points: A=4, K=3, Q=2, J=1. [hcpShift] makes a bidder more or less aggressive
+     * (used to vary the bot field in matchpoint baselines); it is 0 for ordinary bidding.
+     */
+    val hcp: Int = hand.points + hcpShift
 
     /** Number of cards in each suit, indexed by [com.an0obis.bridge.model.Suit]. */
     val len: IntArray = IntArray(4) { suit -> cards.count { it.suit == suit } }

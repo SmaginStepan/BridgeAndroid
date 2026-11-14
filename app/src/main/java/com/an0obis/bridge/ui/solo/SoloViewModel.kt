@@ -2,7 +2,6 @@ package com.an0obis.bridge.ui.solo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.an0obis.bridge.model.sayc.SaycBot
 import com.an0obis.bridge.model.BoardGame
 import com.an0obis.bridge.model.BoardResult
 import com.an0obis.bridge.model.Bot
@@ -12,23 +11,41 @@ import com.an0obis.bridge.model.Contract
 import com.an0obis.bridge.model.Deck
 import com.an0obis.bridge.model.Hand
 import com.an0obis.bridge.model.Phase
+import com.an0obis.bridge.model.Scoring
 import com.an0obis.bridge.model.SeasonRandom
 import com.an0obis.bridge.model.Seat
 import com.an0obis.bridge.model.Vulnerability
+import com.an0obis.bridge.model.play.Claims
+import com.an0obis.bridge.model.sayc.SaycBot
+import com.an0obis.bridge.model.session.Baseline
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** One seat as the table shows it. [cards] is null for a hidden hand; [count] is how many cards remain. */
 data class SeatView(val cards: List<Card>?, val count: Int)
 
+/** A finished board of the session: the result and the matchpoint percentage against the bot field. */
+data class BoardRecord(
+    val board: Int,
+    val contract: Contract?,
+    val declarerTricks: Int,
+    val northSouthScore: Int,
+    val percent: Double
+)
+
 /** Everything the table screen needs to draw. */
 data class TableState(
     val boardNumber: Int = 1,
+    val sessionSize: Int = SoloViewModel.SESSION_SIZE,
     val dealer: Int = Seat.NORTH,
     val vulnerability: Vulnerability = Vulnerability.NONE,
     val phase: Phase = Phase.AUCTION,
@@ -43,25 +60,61 @@ data class TableState(
     val contract: Contract? = null,
     val tricksNorthSouth: Int = 0,
     val tricksEastWest: Int = 0,
-    val result: BoardResult? = null
-)
+    val result: BoardResult? = null,
+    /** How the board ended early, if it did. */
+    val ending: Ending = Ending.PLAYED,
+    /** Matchpoint percentage of the finished board; null while the bot field is still being played. */
+    val percent: Double? = null,
+    /** The finished boards of this session. */
+    val records: List<BoardRecord> = emptyList(),
+    val showSummary: Boolean = false,
+    val canUndo: Boolean = false,
+    val canConcede: Boolean = false
+) {
+    val average: Double? get() = if (records.isEmpty()) null else records.sumOf { it.percent } / records.size
+    val isLastBoard: Boolean get() = boardNumber >= sessionSize
+}
+
+enum class Ending { PLAYED, CLAIMED, CONCEDED }
 
 /**
- * Solo play: the human sits South, the partner and both opponents are bots. Boards are dealt
- * from a random seed (the same mechanism a season will use with the server's seed).
+ * Solo play: the human sits South, the partner and both opponents are bots. A session is 16 boards
+ * dealt from one random seed (the same mechanism a season will use with the server's seed); every
+ * board is ranked in matchpoints against a field of bot tables playing the same deal.
  */
 class SoloViewModel : ViewModel() {
 
-    private val human = Seat.SOUTH
-    private val seed = java.util.UUID.randomUUID().toString().replace("-", "")
+    companion object {
+        const val SESSION_SIZE = 16
 
+        /** How long the human can still undo before the bots answer. */
+        private const val UNDO_WINDOW_MS = 900L
+    }
+
+    private enum class Kind { HUMAN, BOT, AUTO }
+    private class Act(val item: Any, val kind: Kind)
+
+    private val human = Seat.SOUTH
+
+    private var seed = newSeed()
     private var boardNumber = 1
-    private var game: BoardGame = newGame(boardNumber)
+    private var dealHands: List<Hand> = dealFor(boardNumber)
+    private var game = BoardGame(boardNumber, dealHands)
     private var bots: List<Bot> = newBots(boardNumber)
+    private var fieldTables: Deferred<List<Int>> = startField()
+
+    private val records = mutableListOf<BoardRecord>()
+    private var percent: Double? = null
+    private var ending = Ending.PLAYED
+    private var showSummary = false
+
+    /** Every call and card of this board, to be able to take back the last human move. */
+    private val actions = mutableListOf<Act>()
 
     /** The just-finished trick stays on the table for a moment so the player can see it. */
     private var lingering: List<Pair<Int, Card>>? = null
     private var busy = false
+    private var job: Job? = null
 
     private val _state = MutableStateFlow(buildState())
     val state: StateFlow<TableState> = _state.asStateFlow()
@@ -70,64 +123,120 @@ class SoloViewModel : ViewModel() {
         run()
     }
 
-    private fun newGame(n: Int) = BoardGame(n, Deck.deal(SeasonRandom.forPurpose(seed, "deal", n)))
+    private fun newSeed() = java.util.UUID.randomUUID().toString().replace("-", "")
+
+    private fun dealFor(n: Int) = Deck.deal(SeasonRandom.forPurpose(seed, "deal", n))
 
     private fun newBots(n: Int): List<Bot> =
         List(4) { seat -> SaycBot(SeasonRandom.forPurpose(seed, "bots", n * 4 + seat)) }
 
+    /** The bot tables for this board are played in the background while the human plays. */
+    private fun startField(): Deferred<List<Int>> {
+        val s = seed
+        val n = boardNumber
+        val hands = dealHands
+        return viewModelScope.async(Dispatchers.Default) { Baseline.field(s, n, hands) }
+    }
+
+    // ------------------------------------------------------------------ the human's moves
+
     fun onCall(call: Call) {
         if (busy || game.phase != Phase.AUCTION || game.controller != human || !game.auction.isLegal(call)) return
-        run {
-            game.call(call)
-            publish()
-        }
+        run({ doCall(call, Kind.HUMAN) })
     }
 
     fun onCard(card: Card) {
         if (busy || game.phase != Phase.PLAY || game.controller != human) return
         if (card !in game.view().legalCards) return
-        run { playAndShow(card) }
+        run({ playAndShow(card, Kind.HUMAN) })
+    }
+
+    /** Gives the remaining tricks to the opponents. */
+    fun concede() {
+        if (busy || game.phase != Phase.PLAY || game.controller != human) return
+        game.giveRest(1 - (human and 1))
+        ending = Ending.CONCEDED
+        run()
+    }
+
+    private fun canUndoNow(): Boolean {
+        if (game.phase == Phase.DONE) return false
+        val last = actions.indexOfLast { it.kind == Kind.HUMAN }
+        return last >= 0 && actions.drop(last + 1).all { it.kind == Kind.AUTO }
+    }
+
+    /** Takes back the last human move, if no bot has answered it yet. */
+    fun undo() {
+        if (!canUndoNow()) return
+        viewModelScope.launch {
+            job?.cancelAndJoin()
+            if (!canUndoNow()) { run(); return@launch }
+            val keep = actions.take(actions.indexOfLast { it.kind == Kind.HUMAN })
+            game = BoardGame(boardNumber, dealHands)
+            actions.clear()
+            lingering = null
+            for (a in keep) {
+                when (val x = a.item) {
+                    is Call -> game.call(x)
+                    is Card -> game.playCard(x)
+                }
+                actions.add(a)
+            }
+            run()
+        }
     }
 
     fun nextBoard() {
         if (busy || game.phase != Phase.DONE) return
+        if (boardNumber >= SESSION_SIZE) {
+            showSummary = true
+            publish()
+            return
+        }
         boardNumber++
-        game = newGame(boardNumber)
+        startBoard()
+    }
+
+    fun newSession() {
+        job?.cancel()
+        fieldTables.cancel()
+        seed = newSeed()
+        boardNumber = 1
+        records.clear()
+        showSummary = false
+        busy = false
+        startBoard()
+    }
+
+    fun dismissSummary() {
+        showSummary = false
+        publish()
+    }
+
+    private fun startBoard() {
+        dealHands = dealFor(boardNumber)
+        game = BoardGame(boardNumber, dealHands)
         bots = newBots(boardNumber)
+        fieldTables = startField()
+        percent = null
+        ending = Ending.PLAYED
+        actions.clear()
         lingering = null
         run()
     }
 
-    /** Runs the optional first action, then lets the bots move until the human has to act. */
-    private fun run(first: (suspend () -> Unit)? = null) {
-        viewModelScope.launch {
-            busy = true
-            publish()
-            try {
-                first?.invoke()
-                while (game.phase != Phase.DONE && game.controller != human) {
-                    delay(if (game.phase == Phase.AUCTION) 500L else 600L)
-                    val bot = bots[game.controller]
-                    val view = game.view()
-                    if (game.phase == Phase.AUCTION) {
-                        game.call(bot.chooseCall(view))
-                        publish()
-                    } else {
-                        // the card search is heavy: keep it off the main thread
-                        val card = withContext(Dispatchers.Default) { bot.chooseCard(view) }
-                        playAndShow(card)
-                    }
-                }
-            } finally {
-                busy = false
-                publish()
-            }
-        }
+    // ------------------------------------------------------------------ the game loop
+
+    private fun doCall(call: Call, kind: Kind) {
+        game.call(call)
+        actions.add(Act(call, kind))
+        publish()
     }
 
-    private suspend fun playAndShow(card: Card) {
+    private suspend fun playAndShow(card: Card, kind: Kind) {
         val before = game.play!!.tricks.size
         game.playCard(card)
+        actions.add(Act(card, kind))
         val play = game.play!!
         if (play.tricks.size > before) {
             val trick = play.tricks.last()
@@ -138,6 +247,74 @@ class SoloViewModel : ViewModel() {
         }
         publish()
     }
+
+    /** If the rest of the deal is decided, ends it. */
+    private suspend fun claimIfSure(): Boolean {
+        val play = game.play ?: return false
+        if (play.currentTrick.isNotEmpty()) return false
+        val winner = withContext(Dispatchers.Default) { Claims.sureWinner(play) } ?: return false
+        game.giveRest(winner)
+        ending = Ending.CLAIMED
+        return true
+    }
+
+    /** Runs the optional first action, then lets the bots move until the human has to act. */
+    private fun run(first: (suspend () -> Unit)? = null) {
+        job = viewModelScope.launch {
+            busy = true
+            publish()
+            try {
+                first?.invoke()
+                // after a human move there is a short pause in which it can be taken back
+                var undoWindow = first != null
+                while (game.phase != Phase.DONE) {
+                    if (game.phase == Phase.PLAY && claimIfSure()) break
+                    if (game.controller == human) {
+                        // a forced card (the only legal one) is played for the human
+                        val forced = if (game.phase == Phase.PLAY) game.view().legalCards.singleOrNull() else null
+                        if (forced == null) break
+                        publish()
+                        delay(450L)
+                        playAndShow(forced, Kind.AUTO)
+                        continue
+                    }
+                    publish()
+                    delay(if (undoWindow) UNDO_WINDOW_MS else if (game.phase == Phase.AUCTION) 500L else 600L)
+                    undoWindow = false
+                    val bot = bots[game.controller]
+                    val view = game.view()
+                    if (game.phase == Phase.AUCTION) {
+                        doCall(bot.chooseCall(view), Kind.BOT)
+                    } else {
+                        // the card search is heavy: keep it off the main thread
+                        val card = withContext(Dispatchers.Default) { bot.chooseCard(view) }
+                        playAndShow(card, Kind.BOT)
+                    }
+                }
+            } finally {
+                busy = false
+                publish()
+            }
+            if (game.phase == Phase.DONE) settleBoard()
+        }
+    }
+
+    /** Ranks the finished board against the bot field (computed in the background). */
+    private fun settleBoard() {
+        val result = game.result ?: return
+        val n = boardNumber
+        val s = seed
+        val tables = fieldTables
+        viewModelScope.launch {
+            val pct = Scoring.matchpointPercent(result.northSouthScore, tables.await())
+            if (s != seed || records.any { it.board == n }) return@launch
+            records.add(BoardRecord(n, result.contract, result.declarerTricks, result.northSouthScore, pct))
+            if (n == boardNumber) percent = pct
+            publish()
+        }
+    }
+
+    // ------------------------------------------------------------------ what the screen shows
 
     private fun publish() {
         _state.value = buildState()
@@ -164,8 +341,11 @@ class SoloViewModel : ViewModel() {
         } ?: emptyList()
 
         val humanToAct = !busy && !done && g.controller == human
+        // a human forced card is played automatically, so the human is never really "to act" for it
+        val forcedCard = humanToAct && g.phase == Phase.PLAY && g.view().legalCards.size == 1
+        val acting = humanToAct && !forcedCard
         return TableState(
-            boardNumber = g.boardNumber,
+            boardNumber = boardNumber,
             dealer = g.dealer,
             vulnerability = g.vulnerability,
             phase = g.phase,
@@ -173,13 +353,19 @@ class SoloViewModel : ViewModel() {
             seats = seats,
             trick = trick,
             turnSeat = if (done) null else g.actingSeat,
-            humanToAct = humanToAct,
-            legalCalls = if (humanToAct && g.phase == Phase.AUCTION) g.auction.legalCalls().toSet() else emptySet(),
-            legalCards = if (humanToAct && g.phase == Phase.PLAY) g.view().legalCards.toSet() else emptySet(),
+            humanToAct = acting,
+            legalCalls = if (acting && g.phase == Phase.AUCTION) g.auction.legalCalls().toSet() else emptySet(),
+            legalCards = if (acting && g.phase == Phase.PLAY) g.view().legalCards.toSet() else emptySet(),
             contract = g.auction.contract,
             tricksNorthSouth = play?.tricksWon(Seat.NORTH) ?: 0,
             tricksEastWest = play?.tricksWon(Seat.EAST) ?: 0,
-            result = g.result
+            result = g.result,
+            ending = ending,
+            percent = percent,
+            records = records.toList(),
+            showSummary = showSummary,
+            canUndo = canUndoNow(),
+            canConcede = acting && g.phase == Phase.PLAY
         )
     }
 }

@@ -102,6 +102,19 @@ class BoardGame(val boardNumber: Int, hands: List<Hand>) {
         }
     }
 
+    /**
+     * Ends the play by giving every trick still to be played to the side of [winnerSide]
+     * (0 = North-South, 1 = East-West): a claim, or a concession by the other side.
+     */
+    fun giveRest(winnerSide: Int) {
+        check(phase == Phase.PLAY) { "not in the play" }
+        val p = play!!
+        val remaining = 13 - p.tricks.size
+        val contract = p.contract
+        val tricks = p.declarerTricks + if (winnerSide == contract.declarer % 2) remaining else 0
+        result = BoardResult(contract, tricks, Scoring.northSouthScore(contract, vulnerability, tricks))
+    }
+
     /** What the current controller may see. */
     fun view(): BotView {
         check(phase != Phase.DONE) { "board is finished" }

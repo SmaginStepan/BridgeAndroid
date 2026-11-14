@@ -102,6 +102,7 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
     val s by vm.state.collectAsState()
     var showResult by remember(s.boardNumber) { mutableStateOf(true) }
     var explainIndex by remember(s.boardNumber) { mutableStateOf<Int?>(null) }
+    var showConcede by remember(s.boardNumber) { mutableStateOf(false) }
 
     val context = LocalContext.current.applicationContext
     val cloth = remember { BitmapPainter(CardArt.cloth(context)) }
@@ -146,14 +147,14 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
         Box(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
             when (s.phase) {
                 // the bidding grid appears only on the player's turn
-                Phase.AUCTION -> if (s.humanToAct) BidGrid(s.legalCalls, vm::onCall) else StatusLine(s)
-                Phase.PLAY -> StatusLine(s)
+                Phase.AUCTION -> if (s.humanToAct) BidGrid(s.legalCalls, vm::onCall) else StatusRow(s, vm::undo) { showConcede = true }
+                Phase.PLAY -> StatusRow(s, vm::undo) { showConcede = true }
                 Phase.DONE -> Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Button(onClick = vm::nextBoard, modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.solo_next))
+                        Text(stringResource(if (s.isLastBoard) R.string.solo_session_result else R.string.solo_next))
                     }
                     TextButton(onClick = onBack) { Text(stringResource(R.string.solo_menu), color = Color.White) }
                 }
@@ -170,8 +171,26 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
         )
     }
 
+    if (showConcede && s.canConcede) {
+        AlertDialog(
+            onDismissRequest = { showConcede = false },
+            title = { Text(stringResource(R.string.solo_concede_title)) },
+            text = { Text(stringResource(R.string.solo_concede_text)) },
+            confirmButton = {
+                TextButton(onClick = { showConcede = false; vm.concede() }) { Text(stringResource(R.string.solo_yes)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConcede = false }) { Text(stringResource(R.string.solo_no)) }
+            }
+        )
+    }
+
+    if (s.showSummary) {
+        SessionDialog(s, onNew = vm::newSession, onClose = vm::dismissSummary, onMenu = onBack)
+    }
+
     val result = s.result
-    if (s.phase == Phase.DONE && result != null && showResult) {
+    if (s.phase == Phase.DONE && result != null && showResult && !s.showSummary) {
         AlertDialog(
             onDismissRequest = { showResult = false },
             title = { Text(stringResource(R.string.solo_result_title)) },
@@ -201,10 +220,24 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
                         stringResource(R.string.solo_score_ns, signed),
                         modifier = Modifier.padding(top = 8.dp)
                     )
+                    when (s.ending) {
+                        Ending.CLAIMED -> Text(stringResource(R.string.solo_claimed), fontSize = 13.sp)
+                        Ending.CONCEDED -> Text(stringResource(R.string.solo_conceded), fontSize = 13.sp)
+                        Ending.PLAYED -> {}
+                    }
+                    Text(
+                        text = s.percent?.let { stringResource(R.string.solo_percent, percentText(it)) }
+                            ?: stringResource(R.string.solo_percent_wait),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
             },
             confirmButton = {
-                Button(onClick = vm::nextBoard) { Text(stringResource(R.string.solo_next)) }
+                Button(onClick = vm::nextBoard) {
+                    Text(stringResource(if (s.isLastBoard) R.string.solo_session_result else R.string.solo_next))
+                }
             },
             dismissButton = {
                 TextButton(onClick = { showResult = false }) { Text(stringResource(R.string.solo_view_table)) }
@@ -213,18 +246,26 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
     }
 }
 
+private fun percentText(p: Double): String = "%.0f%%".format(p)
+
 @Composable
 private fun InfoBar(s: TableState) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Text(
-            text = listOf(
-                stringResource(R.string.solo_board, s.boardNumber),
-                stringResource(R.string.solo_dealer, seatLetter(s.dealer)),
-                stringResource(R.string.solo_vul, vulnerabilityText(s.vulnerability))
-            ).joinToString("  •  "),
-            color = LabelColor,
-            fontSize = 14.sp
-        )
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = listOf(
+                    stringResource(R.string.solo_board_of, s.boardNumber, s.sessionSize),
+                    stringResource(R.string.solo_dealer, seatLetter(s.dealer)),
+                    stringResource(R.string.solo_vul, vulnerabilityText(s.vulnerability))
+                ).joinToString("  •  "),
+                color = LabelColor,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f)
+            )
+            s.average?.let {
+                Text(stringResource(R.string.solo_average, percentText(it)), color = AccentGold, fontSize = 14.sp)
+            }
+        }
         val contract = s.contract
         if (contract != null) {
             Text(
@@ -235,6 +276,60 @@ private fun InfoBar(s: TableState) {
             )
         }
     }
+}
+
+/** The result of a finished session: the average and every board with its matchpoint percentage. */
+@Composable
+private fun SessionDialog(s: TableState, onNew: () -> Unit, onClose: () -> Unit, onMenu: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(stringResource(R.string.solo_session_result)) },
+        text = {
+            Column {
+                s.average?.let {
+                    Text(
+                        stringResource(R.string.solo_session_average, percentText(it)),
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                    for (r in s.records.sortedBy { it.board }) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            val contract = r.contract
+                            val diff = if (contract == null) 0 else r.declarerTricks - contract.tricksNeeded
+                            Text("${r.board}", modifier = Modifier.weight(0.12f))
+                            Text(
+                                if (contract == null) "—" else contract.toString() + seatLetter(contract.declarer),
+                                modifier = Modifier.weight(0.32f)
+                            )
+                            Text(
+                                when { contract == null -> ""; diff == 0 -> "="; diff > 0 -> "+$diff"; else -> "$diff" },
+                                modifier = Modifier.weight(0.14f)
+                            )
+                            Text(
+                                if (r.northSouthScore > 0) "+${r.northSouthScore}" else "${r.northSouthScore}",
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.weight(0.22f)
+                            )
+                            Text(
+                                percentText(r.percent),
+                                textAlign = TextAlign.End,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(0.2f)
+                            )
+                        }
+                    }
+                    if (s.records.size < s.sessionSize) {
+                        Text(stringResource(R.string.solo_session_wait), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = { Button(onClick = onNew) { Text(stringResource(R.string.solo_session_new)) } },
+        dismissButton = { TextButton(onClick = onMenu) { Text(stringResource(R.string.solo_menu)) } }
+    )
 }
 
 @Composable
@@ -398,6 +493,20 @@ private fun AuctionList(s: TableState, onCallClick: (Int) -> Unit, modifier: Mod
                     }
                 }
             }
+        }
+    }
+}
+
+/** The status text with the Undo and Concede buttons next to it when they apply. */
+@Composable
+private fun StatusRow(s: TableState, onUndo: () -> Unit, onConcede: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.weight(1f)) { StatusLine(s) }
+        if (s.canUndo) {
+            TextButton(onClick = onUndo) { Text(stringResource(R.string.solo_undo), color = AccentGold) }
+        }
+        if (s.canConcede) {
+            TextButton(onClick = onConcede) { Text(stringResource(R.string.solo_concede), color = LabelColor) }
         }
     }
 }

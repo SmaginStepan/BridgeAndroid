@@ -229,3 +229,37 @@ Measured (SaycBot, 40 worlds, 116-680 boards played from both sides):
 - Speed: average decision 4 ms, worst 608 ms (the 600 ms limit) on the desktop JVM.
 
 So the mechanism is correct and cheap, but it is not yet a visible gain. It should matter more with narrow bids (1NT, preempts, strong 2C), a better rollout policy, and in the coach mode (explaining "West must have the king for his bid").
+
+## 15. What is next (2026-11-13, replaces roadmap items 4-8 above)
+
+Done so far: engine and scoring, solo table screen, one-tap bidding box, SAYC-lite bidding with "what does this call mean", card-play bots (sampling, exact endgame, reads the bidding). Commits up to 6e3c6b7.
+
+Proposed order (S = hours, M = a day or two, L = several days):
+
+1. **Play it for real (S)**: install on the emulator and a phone, play 10+ boards with the new bots. Check bot thinking time on a phone (the 600 ms limit), add a small "thinking" indicator, fix whatever the screens show. Nothing below should start before this.
+2. **Solo session with matchpoints (M)**: 16 boards in a row, a score table, and a matchpoint percentage without any server. Baseline: the same board is played by bots at all four seats a number of times (say 30 tables, different seeds) and the human's score is ranked against those results. This is also the base for seasons.
+3. **Speed of play (S-M)**: claim/concede ("I take the rest"), undo of a misclick before the next bot moves, an "auto-play last card" option. Needed for "fast and effortless".
+4. **Coach / training mode (M)**: before each bid a hint button (rule-table suggestion plus the reason), after each bid a comment if it differs from the system; in the play "this card was best in N% of sampled worlds". All data already exists (rule table, `BidInference`, `CardPlayer` averages).
+5. **Bidding upgrades (M-L)**: Blackwood and slam bidding, negative doubles, 2/1 follow-ups, responses after interference; tune how often games are bid (37% in the simulation, a bit high). Each new convention is a data row plus a text in en/es/ru.
+6. **Season layer (M)**: ScoreServer game `bridge` registered (needs the VPS), the monthly seed, seeded deals/bots, the season menu, the leaderboard of matchpoint percentage. Reuses SeasonRandom, ScoreClient and the Preferans season screen.
+7. **Menu, strings, tutorial, store (M)**: strings for all new screens (en/es/ru), delete the ~300 unused Preferans strings, icon, Play/AdMob/IAP ids, privacy policy, a short "how to play" for beginners.
+8. **Online asynchronous play (L)**: 4 seats, partnerships, dummy visibility, confirmation and auto-confirmation; fix the 3-4 seat assumptions in LobbyClient/Protocol.
+9. **Later**: second bidding system, bidding-system builder, better card art, landscape/tablet layout.
+
+Recommended first release (single-player seasons): items 1, 2, 3, 6, 7, with 4 and 5 as the next updates.
+
+### 15a. Items 2 and 3 built (2026-11-13)
+
+**Solo session with matchpoints** (`model/session/Baseline.kt`, `ui/solo/SoloViewModel.kt`, `SoloScreen.kt`):
+- A session is 16 boards from one random seed; the screen shows "Board n / 16", the running average, and at the end a summary (board, contract, result, score, percent) with "New session". The session is not saved yet: leaving the screen loses it.
+- Each board is ranked against a field of 20 bot tables playing the same deal, computed in the background while the human plays (about 0.5 s per board on a PC; the result dialog shows "calculating" until it is ready). The matchpoint percentage is `Scoring.matchpointPercent(score, field)`.
+- The bots bid by the same system, so to get different contracts each field bot gets a random boldness: a shift of -2..+2 (triangular, mostly 0) added to its point count (`HandInfo.hcpShift`), and its card play is sampled with 8 worlds. The same seed and board always give the same field. The human always sits South (north-south), as the field scores are north-south scores.
+- Limit: the field is made of the same kind of bot, so it is a rough stand-in for human opponents. When seasons arrive the baseline can become the real results of other players.
+
+**Speed of play**:
+- *Claims* (`model/play/Claims.kt`): at the start of a trick with 6 or fewer cards left in each hand, an exact solver checks whether one side wins every remaining trick. To avoid giving away a lucky finesse (the solver knows all four hands), the claim must also hold in 16 other layouts of the opponents' cards (same hand sizes, no suit they showed out of). If it does, the board ends at once with "The rest of the tricks was sure". Average check 0.8 ms, worst 135 ms on a PC.
+- *Concede* button (with a confirmation) gives all remaining tricks to the opponents.
+- *Undo*: the last human move can be taken back as long as no bot has answered it (the bots wait 0.9 s after a human move, and the Undo button shows during that time). Undo replays the recorded calls and cards. It must be switched off for seasons.
+- *Forced cards*: when the human has one legal card it is played automatically after a short pause (also for the dummy).
+
+Tested: 64 unit tests (field is repeatable and varied, claims are really sure when the claiming side plays correctly, the solver matches a brute-force search). Smoke-tested on the tablet emulator: new counter, undo button, concede dialog, result with matchpoints. Not tested on a phone, and not tested: a full 16-board session to the summary, the claim message on screen.

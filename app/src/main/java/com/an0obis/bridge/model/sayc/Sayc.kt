@@ -153,7 +153,9 @@ class SaycBot(
     private val rnd: DealRandom = DefaultRandom,
     private val worlds: Int = 100,
     /** Whether the sampled hands must fit what the bidding showed. */
-    private val readBidding: Boolean = true
+    private val readBidding: Boolean = true,
+    /** Added to the point count when bidding: > 0 bids more boldly, < 0 more carefully. */
+    private val hcpShift: Int = 0
 ) : Bot {
 
     private var inferenceCalls: List<Call>? = null
@@ -170,7 +172,7 @@ class SaycBot(
 
     override fun chooseCall(view: BotView): Call {
         val state = AuctionState(view.auction.dealer, view.auction.calls)
-        val call = Sayc.choose(state, HandInfo(view.actingHand))
+        val call = Sayc.choose(state, HandInfo(view.actingHand, hcpShift))
         return if (call in view.legalCalls) call else Call.Pass
     }
 
