@@ -316,7 +316,7 @@
     <string name="ads_unavailable">The store is not available right now. Please try again later.</string>
     <string name="ads_restore">Restore purchase</string>
     <string name="ads_thanks">Ads are removed. Thank you!</string>
-    <string name="rate_banner_text">Enjoying Preferans Master? Please rate it on Google Play.</string>
+    <string name="rate_banner_text">Enjoying Bridge Master? Please rate it on Google Play.</string>
     <string name="rate_banner_rate">Rate</string>
     <string name="rate_banner_later">Later</string>
     <string name="menu_solo">Solo play</string>
@@ -439,4 +439,21 @@
     <string name="sayc_natural">A natural bid that shows the suit. The exact strength depends on the situation.</string>
     <string name="sayc_gen_pass">Pass: nothing more to say.</string>
     <string name="sayc_gen_double">A double: it asks partner to act, or says the opponents’ contract will fail.</string>
+    <string name="menu_top">Top players</string>
+    <string name="menu_top_sub">best session averages worldwide</string>
+    <string name="top_title">Top players</string>
+    <string name="top_sub">best 16-board session average</string>
+    <string name="top_empty">No results yet. Finish a 16-board session to be the first.</string>
+    <string name="top_offline">Cannot reach the list right now. Please try again later.</string>
+    <string name="top_offline_cached">Offline: showing the last list this device saw.</string>
+    <string name="top_post_switch">Show my results here</string>
+    <string name="top_post_hint">sends your name, a random ID and your session average to our server</string>
+    <string name="top_your_name">Your name</string>
+    <string name="top_save_name">Save name</string>
+    <string name="top_saved">Saved</string>
+    <string name="top_delete_hint">To have your entry deleted, email the address in the privacy policy (About).</string>
+    <string name="top_join_title">Join the Top players list?</string>
+    <string name="top_join_text">Your session average can appear on a worldwide list. This sends the name below, a random ID and the score to our server. You can turn it off any time under Top players.</string>
+    <string name="top_join_yes">Yes, show me</string>
+    <string name="top_join_no">No, thanks</string>
 </resources>

@@ -20,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,7 +56,13 @@ import com.an0obis.bridge.model.Suit
 import com.an0obis.bridge.model.Vulnerability
 import com.an0obis.bridge.model.sayc.Meaning
 import com.an0obis.bridge.model.sayc.Sayc
+import com.an0obis.bridge.model.AppSettings
+import com.an0obis.bridge.monetization.AdsManager
+import com.an0obis.bridge.monetization.Engagement
 import com.an0obis.bridge.ui.AccentGold
+import com.an0obis.bridge.ui.misc.RateBanner
+import com.an0obis.bridge.ui.misc.findActivity
+import com.an0obis.bridge.ui.misc.openStorePage
 
 private val Felt = Color(0xFF0B5D2E)
 private val LabelColor = Color(0xFFE8F5E9)
@@ -105,6 +112,13 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
     var showConcede by remember(s.boardNumber) { mutableStateOf(false) }
 
     val context = LocalContext.current.applicationContext
+    val activity = LocalContext.current.findActivity()
+    // between a finished board and the next one: an ad, when the rules say so
+    val onNext: () -> Unit = {
+        if (activity != null) AdsManager.showIfDue(activity, Engagement.state().dealsFinished) { vm.nextBoard() }
+        else vm.nextBoard()
+    }
+    var rateLater by remember { mutableStateOf(false) }
     val cloth = remember { BitmapPainter(CardArt.cloth(context)) }
     Column(modifier = Modifier.fillMaxSize().background(Felt).paint(cloth, contentScale = ContentScale.Crop)) {
         InfoBar(s)
@@ -153,7 +167,7 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(onClick = vm::nextBoard, modifier = Modifier.weight(1f)) {
+                    Button(onClick = onNext, modifier = Modifier.weight(1f)) {
                         Text(stringResource(if (s.isLastBoard) R.string.solo_session_result else R.string.solo_next))
                     }
                     TextButton(onClick = onBack) { Text(stringResource(R.string.solo_menu), color = Color.White) }
@@ -187,6 +201,9 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
 
     if (s.showSummary) {
         SessionDialog(s, onNew = vm::newSession, onClose = vm::dismissSummary, onMenu = onBack)
+    }
+    if (s.leaderboardAsk) {
+        LeaderboardJoinDialog(onJoin = vm::joinLeaderboard, onDecline = vm::declineLeaderboard)
     }
 
     val result = s.result
@@ -232,10 +249,17 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 8.dp)
                     )
+                    if (!rateLater && Engagement.rateBannerDue()) {
+                        RateBanner(
+                            onRate = { openStorePage(context); Engagement.markRated(); rateLater = true },
+                            onLater = { rateLater = true },
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
                 }
             },
             confirmButton = {
-                Button(onClick = vm::nextBoard) {
+                Button(onClick = onNext) {
                     Text(stringResource(if (s.isLastBoard) R.string.solo_session_result else R.string.solo_next))
                 }
             },
@@ -247,6 +271,37 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
 }
 
 private fun percentText(p: Double): String = "%.0f%%".format(p)
+
+/** Asked once, after the first finished session: does the player want to appear on the Top players list? */
+@Composable
+private fun LeaderboardJoinDialog(onJoin: (String) -> Unit, onDecline: () -> Unit) {
+    var name by remember {
+        val saved = AppSettings()
+        mutableStateOf(if (saved.isDefaultPlayerName) "" else saved.playerName)
+    }
+    AlertDialog(
+        onDismissRequest = onDecline,
+        title = { Text(stringResource(R.string.top_join_title)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.top_join_text), fontSize = 15.sp)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it.take(20) },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.top_your_name)) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onJoin(name) }, enabled = name.isNotBlank()) {
+                Text(stringResource(R.string.top_join_yes))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDecline) { Text(stringResource(R.string.top_join_no)) } }
+    )
+}
 
 @Composable
 private fun InfoBar(s: TableState) {

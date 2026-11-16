@@ -316,7 +316,7 @@
     <string name="ads_unavailable">La tienda no está disponible ahora. Inténtalo más tarde.</string>
     <string name="ads_restore">Restaurar compra</string>
     <string name="ads_thanks">Anuncios eliminados. ¡Gracias!</string>
-    <string name="rate_banner_text">¿Te gusta Preferans Master? Valóralo en Google Play.</string>
+    <string name="rate_banner_text">¿Te gusta Bridge Master? Valóralo en Google Play.</string>
     <string name="rate_banner_rate">Valorar</string>
     <string name="rate_banner_later">Luego</string>
     <string name="menu_solo">Juego individual</string>
@@ -439,4 +439,21 @@
     <string name="sayc_natural">Una declaración natural que muestra el palo. La fuerza exacta depende de la situación.</string>
     <string name="sayc_gen_pass">Paso: no hay nada más que decir.</string>
     <string name="sayc_gen_double">Un contra: pide al compañero que actúe, o dice que el contrato de los rivales caerá.</string>
+    <string name="menu_top">Mejores jugadores</string>
+    <string name="menu_top_sub">las mejores medias de sesión del mundo</string>
+    <string name="top_title">Mejores jugadores</string>
+    <string name="top_sub">mejor media de una sesión de 16 manos</string>
+    <string name="top_empty">Aún no hay resultados. Termina una sesión de 16 manos para ser el primero.</string>
+    <string name="top_offline">No se puede acceder a la lista ahora. Inténtalo más tarde.</string>
+    <string name="top_offline_cached">Sin conexión: se muestra la última lista que vio este dispositivo.</string>
+    <string name="top_post_switch">Mostrar mis resultados aquí</string>
+    <string name="top_post_hint">envía tu nombre, un ID aleatorio y tu media de sesión a nuestro servidor</string>
+    <string name="top_your_name">Tu nombre</string>
+    <string name="top_save_name">Guardar nombre</string>
+    <string name="top_saved">Guardado</string>
+    <string name="top_delete_hint">Para borrar tu entrada, escribe al correo de la política de privacidad (Acerca de).</string>
+    <string name="top_join_title">¿Entrar en la lista de mejores jugadores?</string>
+    <string name="top_join_text">La media de tu sesión puede aparecer en una lista mundial. Se envían a nuestro servidor el nombre de abajo, un ID aleatorio y la puntuación. Puedes desactivarlo cuando quieras en Mejores jugadores.</string>
+    <string name="top_join_yes">Sí, mostrarme</string>
+    <string name="top_join_no">No, gracias</string>
 </resources>

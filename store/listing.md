@@ -4,7 +4,7 @@ Files in this folder:
 - `icon-512.png` is the store icon (512 x 512).
 - `feature-graphic-1024x500.png` is the feature graphic.
 - `screenshots/01..04` are the phone screenshots (1080 x 2160): bidding, "what does this call mean", card play, board result.
-- `privacy-policy.html` is a draft privacy policy (fill the two placeholders, then host it on a public URL).
+- `privacy-policy.html` is the privacy policy (hosted at https://preferansmaster.com/bridge/privacy from PrefServer).
 
 Limits: title 30 characters, short description 80, full description 4000.
 
@@ -107,15 +107,15 @@ Bridge Master — контрактный бридж для одного игро
 - Contact email: yours (shown publicly).
 - Privacy policy URL: where you host `privacy-policy.html`.
 
-## Answers for the "App content" forms (first closed test, ads off)
+## Answers for the "App content" forms (version 0.2.0: ads, Remove ads purchase, optional Top players list)
 
 - **App access**: all functionality is available without login or special access.
-- **Ads**: the closed-test build ships with ads switched off. When ads are switched on for the public release, answer "Yes, my app contains ads" and update the forms below.
-- **Content rating (IARC questionnaire)**: category Game. No violence, no blood, no fear, no sexual content, no profanity, no drugs. Gambling: No (bridge is a card game without money or prizes). User interaction: none (no chat, no sharing). Shares location: No. Digital purchases: Yes only when the remove-ads purchase exists. Expected rating: Everyone / PEGI 3.
+- **Ads**: Yes, my app contains ads (AdMob interstitials after some finished boards).
+- **Content rating (IARC questionnaire)**: category Game. No violence, no blood, no fear, no sexual content, no profanity, no drugs. Gambling: No (bridge is a card game without money or prizes). User interaction: none (no chat, no sharing). Shares location: No. Digital purchases: Yes (the remove-ads purchase). Expected rating: Everyone / PEGI 3.
 - **Target audience**: 18 and over (not designed for children). This keeps you outside the Families policy.
 - **News app / COVID / government / health / financial**: No to all.
-- **Data safety, version without ads**: the app collects no data and shares none. Data is stored only on the device. No account.
-- **Data safety, version with ads (AdMob)**: declare the data collected by the Google Mobile Ads SDK (advertising ID and device identifiers, approximate location from the IP address, diagnostics and app interactions), shared with Google, for advertising and analytics, not optional for ad users. Take the exact list from Google's AdMob page for the Play data safety form, which is the authority; I could not check it from here.
+- **Data safety**: import `data-safety-ads-leaderboard.csv` (Name, User IDs and score are optional, from the Top players list; AdMob data is shared with Google). `data-safety-no-data.csv` is only for a build without ads and without the list.
+- **Content rating**: answer "Yes" to Digital purchases (Purchases of digital goods only).
 - **Advertising ID declaration**: the AdMob library adds the advertising-ID permission, so answer "Yes, the app uses the advertising ID" with purpose "Advertising or marketing".
 
 ## Message to send to your testers

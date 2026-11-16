@@ -316,7 +316,7 @@
     <string name="ads_unavailable">Магазин сейчас недоступен. Попробуйте позже.</string>
     <string name="ads_restore">Восстановить покупку</string>
     <string name="ads_thanks">Реклама отключена. Спасибо!</string>
-    <string name="rate_banner_text">Нравится «Преферанс мастер»? Оцените игру в Google Play.</string>
+    <string name="rate_banner_text">Нравится «Бридж-мастер»? Оцените игру в Google Play.</string>
     <string name="rate_banner_rate">Оценить</string>
     <string name="rate_banner_later">Позже</string>
     <string name="menu_solo">Одиночная игра</string>
@@ -439,4 +439,21 @@
     <string name="sayc_natural">Естественная заявка, показывает названную масть. Точная сила зависит от ситуации.</string>
     <string name="sayc_gen_pass">Пас: добавить нечего.</string>
     <string name="sayc_gen_double">Контра: просит партнёра действовать или говорит, что контракт соперников не выполнится.</string>
+    <string name="menu_top">Лучшие игроки</string>
+    <string name="menu_top_sub">лучшие средние сессий по всему миру</string>
+    <string name="top_title">Лучшие игроки</string>
+    <string name="top_sub">лучший средний результат сессии из 16 раздач</string>
+    <string name="top_empty">Пока нет результатов. Завершите сессию из 16 раздач и станьте первым.</string>
+    <string name="top_offline">Список сейчас недоступен. Попробуйте позже.</string>
+    <string name="top_offline_cached">Нет сети: показан последний список, который видело это устройство.</string>
+    <string name="top_post_switch">Показывать мои результаты здесь</string>
+    <string name="top_post_hint">отправляет на наш сервер имя, случайный ID и средний результат сессии</string>
+    <string name="top_your_name">Ваше имя</string>
+    <string name="top_save_name">Сохранить имя</string>
+    <string name="top_saved">Сохранено</string>
+    <string name="top_delete_hint">Чтобы удалить вашу запись, напишите на адрес из политики конфиденциальности (О программе).</string>
+    <string name="top_join_title">Попасть в список лучших игроков?</string>
+    <string name="top_join_text">Средний результат вашей сессии может появиться в общем списке. На наш сервер отправятся имя из поля ниже, случайный ID и результат. Это можно выключить в любой момент в разделе «Лучшие игроки».</string>
+    <string name="top_join_yes">Да, показывать</string>
+    <string name="top_join_no">Нет, спасибо</string>
 </resources>

@@ -2,6 +2,7 @@ package com.an0obis.bridge.ui.solo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.an0obis.bridge.model.AppSettings
 import com.an0obis.bridge.model.BoardGame
 import com.an0obis.bridge.model.BoardResult
 import com.an0obis.bridge.model.Bot
@@ -9,6 +10,7 @@ import com.an0obis.bridge.model.Call
 import com.an0obis.bridge.model.Card
 import com.an0obis.bridge.model.Contract
 import com.an0obis.bridge.model.Deck
+import com.an0obis.bridge.model.GlobalScores
 import com.an0obis.bridge.model.Hand
 import com.an0obis.bridge.model.Phase
 import com.an0obis.bridge.model.Scoring
@@ -16,6 +18,7 @@ import com.an0obis.bridge.model.SeasonRandom
 import com.an0obis.bridge.model.Seat
 import com.an0obis.bridge.model.Vulnerability
 import com.an0obis.bridge.model.play.Claims
+import com.an0obis.bridge.monetization.Engagement
 import com.an0obis.bridge.model.sayc.SaycBot
 import com.an0obis.bridge.model.session.Baseline
 import kotlinx.coroutines.Deferred
@@ -69,7 +72,9 @@ data class TableState(
     val records: List<BoardRecord> = emptyList(),
     val showSummary: Boolean = false,
     val canUndo: Boolean = false,
-    val canConcede: Boolean = false
+    val canConcede: Boolean = false,
+    /** The session is over and the player has not yet said whether to join the leaderboard. */
+    val leaderboardAsk: Boolean = false
 ) {
     val average: Double? get() = if (records.isEmpty()) null else records.sumOf { it.percent } / records.size
     val isLastBoard: Boolean get() = boardNumber >= sessionSize
@@ -107,6 +112,12 @@ class SoloViewModel : ViewModel() {
     private var percent: Double? = null
     private var ending = Ending.PLAYED
     private var showSummary = false
+
+    /** The leaderboard choice (see [AppSettings]); kept here so drawing never reads a file. */
+    private var leaderboardChoice = AppSettings().leaderboardChoice
+
+    /** This session's result has already been queued for the leaderboard. */
+    private var posted = false
 
     /** Every call and card of this board, to be able to take back the last human move. */
     private val actions = mutableListOf<Act>()
@@ -204,6 +215,7 @@ class SoloViewModel : ViewModel() {
         boardNumber = 1
         records.clear()
         showSummary = false
+        posted = false
         busy = false
         startBoard()
     }
@@ -211,6 +223,31 @@ class SoloViewModel : ViewModel() {
     fun dismissSummary() {
         showSummary = false
         publish()
+    }
+
+    /** The player agreed to appear on the leaderboard under [name]. */
+    fun joinLeaderboard(name: String) {
+        val settings = AppSettings()
+        settings.playerName = name.trim()
+        settings.leaderboardChoice = AppSettings.POST
+        leaderboardChoice = AppSettings.POST
+        postSessionIfDue()
+        publish()
+    }
+
+    fun declineLeaderboard() {
+        AppSettings().leaderboardChoice = AppSettings.DECLINED
+        leaderboardChoice = AppSettings.DECLINED
+        publish()
+    }
+
+    /** Queues the finished session's average for the leaderboard, once, if the player agreed. */
+    private fun postSessionIfDue() {
+        if (posted || records.size < SESSION_SIZE || leaderboardChoice != AppSettings.POST) return
+        val average = records.sumOf { it.percent } / records.size
+        posted = true
+        GlobalScores.enqueue(AppSettings().playerName, average)
+        viewModelScope.launch(Dispatchers.IO) { GlobalScores.flushPending() }
     }
 
     private fun startBoard() {
@@ -309,7 +346,9 @@ class SoloViewModel : ViewModel() {
             val pct = Scoring.matchpointPercent(result.northSouthScore, tables.await())
             if (s != seed || records.any { it.board == n }) return@launch
             records.add(BoardRecord(n, result.contract, result.declarerTricks, result.northSouthScore, pct))
+            Engagement.dealFinished() // counts towards the ad-free first boards and the rate reminder
             if (n == boardNumber) percent = pct
+            postSessionIfDue()
             publish()
         }
     }
@@ -365,7 +404,8 @@ class SoloViewModel : ViewModel() {
             records = records.toList(),
             showSummary = showSummary,
             canUndo = canUndoNow(),
-            canConcede = acting && g.phase == Phase.PLAY
+            canConcede = acting && g.phase == Phase.PLAY,
+            leaderboardAsk = showSummary && leaderboardChoice == AppSettings.ASK
         )
     }
 }

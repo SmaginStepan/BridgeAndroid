@@ -20,6 +20,7 @@ import com.an0obis.bridge.ui.BridgeTheme
 import com.an0obis.bridge.ui.MainMenuScreen
 import com.an0obis.bridge.ui.PlaceholderScreen
 import com.an0obis.bridge.ui.misc.AboutScreen
+import com.an0obis.bridge.ui.misc.TopPlayersScreen
 import com.an0obis.bridge.ui.solo.SoloScreen
 import com.an0obis.bridge.ui.misc.openStorePage
 
@@ -28,6 +29,7 @@ object Routes {
     const val SOLO = "solo"
     const val SEASON = "season"
     const val ONLINE = "online"
+    const val TOP = "top"
     const val ABOUT = "about"
 }
 
@@ -78,6 +80,7 @@ class MainActivity : AppCompatActivity() {
                 MainMenuScreen(
                     onSolo = { navController.navigate(Routes.SOLO) },
                     onSeason = { navController.navigate(Routes.SEASON) },
+                    onTop = { navController.navigate(Routes.TOP) },
                     onOnline = { navController.navigate(Routes.ONLINE) },
                     onRate = {
                         openStorePage(this@MainActivity)
@@ -89,6 +92,7 @@ class MainActivity : AppCompatActivity() {
             }
             composable(Routes.SOLO) { SoloScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.SEASON) { PlaceholderScreen(getString(R.string.coming_soon)) }
+            composable(Routes.TOP) { TopPlayersScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.ONLINE) { PlaceholderScreen(getString(R.string.coming_soon)) }
             composable(Routes.ABOUT) {
                 val version = try {

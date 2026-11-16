@@ -263,3 +263,9 @@ Recommended first release (single-player seasons): items 1, 2, 3, 6, 7, with 4 a
 - *Forced cards*: when the human has one legal card it is played automatically after a short pause (also for the dummy).
 
 Tested: 64 unit tests (field is repeatable and varied, claims are really sure when the claiming side plays correctly, the solver matches a brute-force search). Smoke-tested on the tablet emulator: new counter, undo button, concede dialog, result with matchpoints. Not tested on a phone, and not tested: a full 16-board session to the summary, the claim message on screen.
+
+## 16. Release 0.2.0: ads, Remove ads, Top players (Nov 2026)
+- Interstitial after boards (not the first 10, at most one per 45 s), UMP consent, "Remove ads" (`remove_ads`, one-time product), rate banner every 10 boards until rated: the code was already copied from Preferans; this release connects it to the solo table.
+- Top players: ScoreServer game `bridge`, board `alltime`, score = average matchpoint percentage of a finished 16-board session x10 (best per player). Strictly opt-in: asked once after the first finished session; the "Top players" screen can switch it off. Results queue in `pending_scores.json` and are sent when online; nothing is queued unless the choice is "post".
+- Needs before upload: game `bridge` registered on the VPS (`register-game bridge "Bridge Master" --max-score 1000 --min-interval 30`) and `scoreApiKey` / `scoreSecret` in `~/.gradle/gradle.properties`; AdMob ids for Bridge (`admobAppId`, `admobInterstitialId`) and the Play product `remove_ads`.
+- Privacy policy and Data safety CSV (`store/data-safety-ads-leaderboard.csv`) describe exactly this.
