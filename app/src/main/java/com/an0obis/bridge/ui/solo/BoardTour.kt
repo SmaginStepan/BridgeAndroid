@@ -51,7 +51,7 @@ import com.an0obis.bridge.R
 import com.an0obis.bridge.ui.AccentGold
 
 /** The parts of the table screen the tour can point at. */
-enum class TourTarget { INFO, AUCTION, HAND, BID_GRID, BID_SPECIAL, STATUS, CONCEDE, TRICK, SEAT_N, SEAT_W, SEAT_E }
+enum class TourTarget { INFO, AUCTION, HAND, BID_GRID, BID_SPECIAL, STATUS, CONCEDE, TRICK, SEAT_N, SEAT_W, SEAT_E, ADVICE }
 
 /** Where each target is on screen right now; a target that is not drawn has no entry. */
 class TourBounds {
@@ -73,7 +73,11 @@ object Tour {
     const val AUCTION = 1
     const val PLAY = 2
     const val DUMMY = 4
-    const val ALL = AUCTION or PLAY or DUMMY
+    const val ADVICE = 8
+    const val ALL = AUCTION or PLAY or DUMMY or ADVICE
+
+    /** One stop for the Advice button, shown once on the player's first turn after it was added. */
+    val adviceSteps = listOf(TourStep(TourTarget.ADVICE, R.string.tour_advice_t, R.string.tour_advice_b))
 
     val auctionSteps = listOf(
         TourStep(TourTarget.INFO, R.string.tour_info_t, R.string.tour_info_b),

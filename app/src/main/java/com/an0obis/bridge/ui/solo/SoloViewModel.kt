@@ -17,6 +17,9 @@ import com.an0obis.bridge.model.Scoring
 import com.an0obis.bridge.model.SeasonRandom
 import com.an0obis.bridge.model.Seat
 import com.an0obis.bridge.model.Vulnerability
+import com.an0obis.bridge.model.advice.Advice
+import com.an0obis.bridge.model.advice.BidAdvisor
+import com.an0obis.bridge.model.advice.PlayAdvisor
 import com.an0obis.bridge.model.play.Claims
 import com.an0obis.bridge.monetization.Engagement
 import com.an0obis.bridge.model.sayc.SaycBot
@@ -82,6 +85,13 @@ data class TableState(
 
 enum class Ending { PLAYED, CLAIMED, CONCEDED }
 
+/** The advice dialog: closed, being worked out, or ready to show. */
+sealed interface AdviceUi {
+    object None : AdviceUi
+    object Loading : AdviceUi
+    class Ready(val advice: Advice) : AdviceUi
+}
+
 /**
  * Solo play: the human sits South, the partner and both opponents are bots. A session is 16 boards
  * dealt from one random seed (the same mechanism a season will use with the server's seed); every
@@ -130,6 +140,12 @@ class SoloViewModel : ViewModel() {
     private val _state = MutableStateFlow(buildState())
     val state: StateFlow<TableState> = _state.asStateFlow()
 
+    private val _advice = MutableStateFlow<AdviceUi>(AdviceUi.None)
+    val advice: StateFlow<AdviceUi> = _advice.asStateFlow()
+
+    /** Bumped whenever the advice is closed or becomes out of date, so a late answer is thrown away. */
+    private var adviceToken = 0
+
     init {
         run()
     }
@@ -151,20 +167,47 @@ class SoloViewModel : ViewModel() {
 
     // ------------------------------------------------------------------ the human's moves
 
+    /**
+     * Works out what to bid or play now and why, for the player's own turn. It is shown by the
+     * screen; the answer is dropped if the position changes before it is ready.
+     */
+    fun requestAdvice() {
+        if (busy || game.phase == Phase.DONE || game.controller != human) return
+        val token = ++adviceToken
+        val view = game.view()
+        val auction = game.phase == Phase.AUCTION
+        _advice.value = AdviceUi.Loading
+        viewModelScope.launch {
+            val advice = withContext(Dispatchers.Default) {
+                if (auction) BidAdvisor.advise(view.auction.dealer, view.auction.calls, view.actingHand)
+                else PlayAdvisor.advise(view)
+            }
+            if (token == adviceToken) _advice.value = AdviceUi.Ready(advice)
+        }
+    }
+
+    fun closeAdvice() {
+        adviceToken++
+        _advice.value = AdviceUi.None
+    }
+
     fun onCall(call: Call) {
         if (busy || game.phase != Phase.AUCTION || game.controller != human || !game.auction.isLegal(call)) return
+        closeAdvice()
         run({ doCall(call, Kind.HUMAN) })
     }
 
     fun onCard(card: Card) {
         if (busy || game.phase != Phase.PLAY || game.controller != human) return
         if (card !in game.view().legalCards) return
+        closeAdvice()
         run({ playAndShow(card, Kind.HUMAN) })
     }
 
     /** Gives the remaining tricks to the opponents. */
     fun concede() {
         if (busy || game.phase != Phase.PLAY || game.controller != human) return
+        closeAdvice()
         game.giveRest(1 - (human and 1))
         ending = Ending.CONCEDED
         run()
@@ -179,6 +222,7 @@ class SoloViewModel : ViewModel() {
     /** Takes back the last human move, if no bot has answered it yet. */
     fun undo() {
         if (!canUndoNow()) return
+        closeAdvice()
         viewModelScope.launch {
             job?.cancelAndJoin()
             if (!canUndoNow()) { run(); return@launch }
@@ -199,6 +243,7 @@ class SoloViewModel : ViewModel() {
 
     fun nextBoard() {
         if (busy || game.phase != Phase.DONE) return
+        closeAdvice()
         if (boardNumber >= SESSION_SIZE) {
             showSummary = true
             publish()
@@ -209,6 +254,7 @@ class SoloViewModel : ViewModel() {
     }
 
     fun newSession() {
+        closeAdvice()
         job?.cancel()
         fieldTables.cancel()
         seed = newSeed()

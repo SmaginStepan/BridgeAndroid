@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,6 +57,8 @@ import com.an0obis.bridge.model.Phase
 import com.an0obis.bridge.model.Seat
 import com.an0obis.bridge.model.Suit
 import com.an0obis.bridge.model.Vulnerability
+import com.an0obis.bridge.model.advice.Advice
+import com.an0obis.bridge.model.advice.Reason
 import com.an0obis.bridge.model.sayc.Meaning
 import com.an0obis.bridge.model.sayc.Sayc
 import com.an0obis.bridge.model.AppSettings
@@ -113,7 +116,7 @@ private fun seatTarget(seat: Int): TourTarget = when (seat) {
 }
 
 /** The parts of the tour that apply right now: only on the player's own turn, and only if not seen yet. */
-private fun tourPieces(s: TableState, seen: Int): List<TourPiece> {
+private fun tourPieces(s: TableState, seen: Int, adviceAllowed: Boolean): List<TourPiece> {
     if (s.showSummary || !s.humanToAct) return emptyList()
     val pieces = mutableListOf<TourPiece>()
     when (s.phase) {
@@ -131,11 +134,16 @@ private fun tourPieces(s: TableState, seen: Int): List<TourPiece> {
         }
         Phase.DONE -> {}
     }
+    if (adviceAllowed && seen and Tour.ADVICE == 0) pieces += TourPiece(Tour.ADVICE, Tour.adviceSteps)
     return pieces
 }
 
+/**
+ * The table. [adviceAllowed] switches the Advice button off: the Season game, where every player
+ * gets the same deals and the results are compared, must call this with false.
+ */
 @Composable
-fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
+fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: SoloViewModel = viewModel()) {
     val s by vm.state.collectAsState()
     var showResult by remember(s.boardNumber) { mutableStateOf(true) }
     var explainIndex by remember(s.boardNumber) { mutableStateOf<Int?>(null) }
@@ -156,7 +164,7 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
     val bounds = remember { TourBounds() }
     var tourSeen by remember { mutableIntStateOf(settings.boardTourSeen) }
     var tourIndex by remember { mutableIntStateOf(0) }
-    val pieces = tourPieces(s, tourSeen)
+    val pieces = tourPieces(s, tourSeen, adviceAllowed)
     val tourSteps = pieces.flatMap { it.steps }.filter { it.target == null || it.target in bounds.map }
     val tourStep = tourSteps.getOrNull(tourIndex.coerceAtMost(tourSteps.lastIndex))
     val endTour = { mask: Int ->
@@ -169,7 +177,9 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().background(Felt).paint(cloth, contentScale = ContentScale.Crop)) {
-            Box(modifier = Modifier.tourTarget(bounds, TourTarget.INFO)) { InfoBar(s) }
+            Box(modifier = Modifier.tourTarget(bounds, TourTarget.INFO)) {
+                InfoBar(s, bounds, if (adviceAllowed) vm::requestAdvice else null)
+            }
 
             if (s.phase == Phase.AUCTION) {
                 // the auction: a scrollable list of the calls made so far fills the middle
@@ -251,6 +261,13 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
             onDismiss = { explainIndex = null }
         )
     }
+
+    val adviceUi by vm.advice.collectAsState()
+    AdviceDialog(
+        state = adviceUi,
+        onDo = { a -> a.call?.let { vm.onCall(it) }; a.card?.let { vm.onCard(it) } },
+        onClose = vm::closeAdvice
+    )
 
     if (showConcede && s.canConcede) {
         AlertDialog(
@@ -371,9 +388,9 @@ private fun LeaderboardJoinDialog(onJoin: (String) -> Unit, onDecline: () -> Uni
 }
 
 @Composable
-private fun InfoBar(s: TableState) {
+private fun InfoBar(s: TableState, bounds: TourBounds, onAdvice: (() -> Unit)?) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = listOf(
                     stringResource(R.string.solo_board_of, s.boardNumber, s.sessionSize),
@@ -386,6 +403,12 @@ private fun InfoBar(s: TableState) {
             )
             s.average?.let {
                 Text(stringResource(R.string.solo_average, percentText(it)), color = AccentGold, fontSize = 14.sp)
+            }
+            // on the player's own turn: what to bid or play, and why (not in the Season game)
+            if (s.humanToAct && onAdvice != null) {
+                TextButton(onClick = onAdvice, modifier = Modifier.tourTarget(bounds, TourTarget.ADVICE)) {
+                    Text(stringResource(R.string.advice_btn), color = AccentGold, fontWeight = FontWeight.Bold)
+                }
             }
         }
         val contract = s.contract
@@ -545,6 +568,115 @@ private fun rangesText(m: Meaning): String {
     }
     if (m.balanced == true) parts.add(stringResource(R.string.sayc_balanced))
     return parts.joinToString(" · ")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Advice
+// ---------------------------------------------------------------------------------------------
+
+/** "Bid @@" with the call written in suit colours instead of the @@. */
+private fun withSymbols(template: String, inner: AnnotatedString): AnnotatedString = buildAnnotatedString {
+    val i = template.indexOf("@@")
+    if (i < 0) {
+        append(template)
+    } else {
+        append(template.substring(0, i))
+        append(inner)
+        append(template.substring(i + 2))
+    }
+}
+
+// the advice dialog is dark, so its suit symbols use the light colours made for the green table
+private fun cardLabel(card: Card): AnnotatedString = buildAnnotatedString {
+    append(rankText(card.rank))
+    withStyle(SpanStyle(color = suitColorOnTable(card.suit))) { append(suitSymbol(card.suit)) }
+}
+
+/** The one-line answer: "Bid 1♠", "Pass", "Play ♠K" with the suit symbols coloured. */
+@Composable
+private fun adviceHeadline(advice: Advice): AnnotatedString {
+    val call = advice.call
+    val card = advice.card
+    return when {
+        call is Call.Bid -> withSymbols(
+            stringResource(R.string.advice_headline_bid, "@@"),
+            denominationText(call.level.toString(), call.denom, onTable = true)
+        )
+        call is Call.Pass -> AnnotatedString(stringResource(R.string.advice_headline_pass))
+        call is Call.Dbl -> AnnotatedString(stringResource(R.string.advice_headline_double))
+        call is Call.Redbl -> AnnotatedString(stringResource(R.string.advice_headline_redouble))
+        card != null -> withSymbols(stringResource(R.string.advice_headline_play, "@@"), cardLabel(card))
+        else -> AnnotatedString("")
+    }
+}
+
+/** One reason in the player's language: `adv_<key>` filled with its arguments, hearts and diamonds in red. */
+@Composable
+private fun reasonText(reason: Reason): AnnotatedString {
+    val context = LocalContext.current
+    val id = context.resources.getIdentifier("adv_${reason.key}", "string", context.packageName)
+    if (id == 0) return AnnotatedString(reason.key)
+    val args = reason.args.map { a ->
+        if (a.startsWith("@seat:")) seatLetter(a.removePrefix("@seat:").toInt()) else a
+    }
+    val text = context.getString(id, *args.toTypedArray())
+    return buildAnnotatedString {
+        for (ch in text) {
+            if (ch == '♥' || ch == '♦') withStyle(SpanStyle(color = suitColorOnTable(Suit.HEARTS))) { append(ch) }
+            else append(ch)
+        }
+    }
+}
+
+/** What to bid or play, and why: closed, being worked out, or the answer with "Do it" and "Close". */
+@Composable
+private fun AdviceDialog(state: AdviceUi, onDo: (Advice) -> Unit, onClose: () -> Unit) {
+    when (state) {
+        is AdviceUi.None -> {}
+        is AdviceUi.Loading -> AlertDialog(
+            onDismissRequest = onClose,
+            title = { Text(stringResource(R.string.advice_title)) },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+                    Text(stringResource(R.string.advice_thinking), modifier = Modifier.padding(start = 14.dp))
+                }
+            },
+            confirmButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.advice_close)) } }
+        )
+        is AdviceUi.Ready -> {
+            val advice = state.advice
+            AlertDialog(
+                onDismissRequest = onClose,
+                title = { Text(stringResource(R.string.advice_title)) },
+                text = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.verticalScroll(rememberScrollState())
+                    ) {
+                        Text(adviceHeadline(advice), fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.advice_why), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF666666))
+                        for (reason in advice.reasons) {
+                            Text(reasonText(reason), fontSize = 15.sp)
+                        }
+                        val meaning = advice.meaning
+                        if (meaning != null) {
+                            Column {
+                                Text(stringResource(R.string.advice_means), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF666666))
+                                Text(meaningText(meaning.ruleId), fontSize = 15.sp)
+                                val ranges = rangesText(meaning)
+                                if (ranges.isNotEmpty()) {
+                                    Text(ranges, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = { Button(onClick = { onDo(advice) }) { Text(stringResource(R.string.advice_do_it)) } },
+                dismissButton = { TextButton(onClick = onClose) { Text(stringResource(R.string.advice_close)) } }
+            )
+        }
+    }
 }
 
 /** What a call means under the bidding system, tapped from the auction list. */

@@ -10,6 +10,15 @@ import com.an0obis.bridge.model.Seat
 import com.an0obis.bridge.model.Suit
 import com.an0obis.bridge.model.play.CardPlayer
 
+/** The symbol of a suit (or "NT"), for texts. */
+internal fun suitSymbolText(suit: Int): String = when (suit) {
+    Suit.CLUBS -> "♣"
+    Suit.DIAMONDS -> "♦"
+    Suit.HEARTS -> "♥"
+    Suit.SPADES -> "♠"
+    else -> "NT"
+}
+
 /** What the partner's calls tell us so far. */
 class PartnerInfo(val minHcp: Int, val maxHcp: Int, val minLen: IntArray) {
     /** A middle-of-the-road guess of partner's points. */
@@ -54,14 +63,22 @@ object Fallback {
         else -> bid.level >= 5
     }
 
+    /** A call chosen by the fallback logic, with the reason ([key] and [args] fill an advice text). */
+    class Decision(val call: Call, val key: String, val args: List<String> = emptyList())
+
     /** [info] can be passed in when the same position is judged for many hands. */
-    fun decide(state: AuctionState, hand: HandInfo, info: PartnerInfo = partnerInfo(state)): Call {
+    fun decide(state: AuctionState, hand: HandInfo, info: PartnerInfo = partnerInfo(state)): Call =
+        decideWithWhy(state, hand, info).call
+
+    /** The same choice as [decide], together with the reason for it. */
+    fun decideWithWhy(state: AuctionState, hand: HandInfo, info: PartnerInfo = partnerInfo(state)): Decision {
         val auction = state.auction
-        val last = auction.lastBid ?: return Call.Pass
-        val lastBidder = auction.lastBidder ?: return Call.Pass
+        val last = auction.lastBid ?: return Decision(Call.Pass, "fb_pass_open")
+        val lastBidder = auction.lastBidder ?: return Decision(Call.Pass, "fb_pass_open")
         val lastIsOurs = Seat.sameSide(lastBidder, state.seat)
 
         val estimate = hand.hcp + info.expectedHcp
+        val est = estimate.toString()
 
         val gameForced = state.weOpened && state.openingBid == Call.Bid(2, Suit.CLUBS) &&
             state.bids.none { Seat.sameSide(it.seat, state.seat) && isGame(it.call as Call.Bid) }
@@ -78,20 +95,38 @@ object Fallback {
             }
         }
 
+        var key = "fb_pass_weak"
+        var args = listOf(est)
         val target: Call.Bid? = when {
             estimate >= 25 || gameForced -> when {
-                fit != null && fit >= Suit.HEARTS -> Call.Bid(4, fit)
-                fit != null && estimate >= 28 -> Call.Bid(5, fit)
-                else -> Call.Bid(3, Suit.NO_TRUMP)
+                fit != null && fit >= Suit.HEARTS -> {
+                    key = "fb_game_fit"; args = listOf(est, suitSymbolText(fit), fitTotal.toString())
+                    Call.Bid(4, fit)
+                }
+                fit != null && estimate >= 28 -> {
+                    key = "fb_game_fit"; args = listOf(est, suitSymbolText(fit), fitTotal.toString())
+                    Call.Bid(5, fit)
+                }
+                else -> {
+                    key = "fb_game_nt"; args = listOf(est)
+                    Call.Bid(3, Suit.NO_TRUMP)
+                }
             }
             estimate >= 23 -> when {
-                fit != null && fit >= Suit.HEARTS -> Call.Bid(3, fit)
-                fit == null && hand.balanced -> Call.Bid(2, Suit.NO_TRUMP)
+                fit != null && fit >= Suit.HEARTS -> {
+                    key = "fb_invite_fit"; args = listOf(est, suitSymbolText(fit), fitTotal.toString())
+                    Call.Bid(3, fit)
+                }
+                fit == null && hand.balanced -> {
+                    key = "fb_invite_nt"; args = listOf(est)
+                    Call.Bid(2, Suit.NO_TRUMP)
+                }
                 else -> null
             }
             // competing for the part-score with a known eight-card fit
             fit != null && !lastIsOurs && estimate >= 19 -> {
                 val level = if (fitTotal >= 9) 3 else 2
+                key = "fb_compete_fit"; args = listOf(est, suitSymbolText(fit), fitTotal.toString())
                 Call.Bid(level, fit)
             }
             else -> null
@@ -105,15 +140,15 @@ object Fallback {
             if (!lastIsOurs && ownSuit != null && estimate >= 20 && (hand.len[ownSuit] >= 6 || hand.hcp >= 15)) {
                 for (level in 1..3) {
                     val bid = Call.Bid(level, ownSuit)
-                    if (auction.isLegal(bid)) return bid
+                    if (auction.isLegal(bid)) return Decision(bid, "fb_compete_own", listOf(suitSymbolText(ownSuit)))
                 }
             }
-            return Call.Pass
+            return Decision(Call.Pass, "fb_pass_weak", listOf(est))
         }
         // we are already at the target or beyond it
-        if (lastIsOurs && (last == target || last.isHigherThan(target))) return Call.Pass
-        if (target.level > 5) return Call.Pass
-        return if (auction.isLegal(target)) target else Call.Pass
+        if (lastIsOurs && (last == target || last.isHigherThan(target))) return Decision(Call.Pass, "fb_pass_enough")
+        if (target.level > 5) return Decision(Call.Pass, "fb_pass_enough")
+        return if (auction.isLegal(target)) Decision(target, key, args) else Decision(Call.Pass, "fb_pass_blocked")
     }
 }
 
