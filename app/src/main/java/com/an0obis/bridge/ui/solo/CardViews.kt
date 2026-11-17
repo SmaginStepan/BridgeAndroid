@@ -49,10 +49,8 @@ object CardArt {
     /** [card] == null gives the card back. */
     fun card(context: Context, card: Card?): ImageBitmap {
         val name = if (card == null) "0" else "${card.rank}${"cdhs"[card.suit]}"
-        // the card back is already tiny and the court cards are the detailed ones, so both load at full
-        // size; the plain number cards are large for what they show, so they load at half size
-        val sample = if (card == null || card.rank in 11..13) 1 else 2
-        return cache.getOrPut(name) { decode(context, "cards/$name.png", sample) }
+        // every face is 296x392 and drawn much smaller on a phone, but a tablet shows it big: load full size
+        return cache.getOrPut(name) { decode(context, "cards/$name.png", 1) }
     }
 
     fun cloth(context: Context): ImageBitmap = cache.getOrPut("greencloth") { decode(context, "cards/greencloth.png", 1) }
