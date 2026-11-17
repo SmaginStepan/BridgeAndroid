@@ -15,6 +15,15 @@ class AppSettings {
 
         /** 0 = never asked, 1 = results are posted to the leaderboard, 2 = declined */
         var leaderboard: Int = 0
+
+        /** Id of the bidding system the bots and the coach use (only "sayc" exists so far). */
+        var biddingSystem: String = "sayc"
+
+        /** True once the player has seen the tutorial (it opens by itself before the first game). */
+        var tutorialSeen: Boolean = false
+
+        /** Bit mask of the parts of the on-table tour the player has seen (see the Tour object). */
+        var boardTourSeen: Int = 0
     }
 
     private fun load(): Data {
@@ -55,8 +64,23 @@ class AppSettings {
         get() = load().leaderboard
         set(value) = edit { it.leaderboard = value }
 
+    var biddingSystem: String
+        get() = load().biddingSystem
+        set(value) = edit { it.biddingSystem = value }
+
+    var tutorialSeen: Boolean
+        get() = load().tutorialSeen
+        set(value) = edit { it.tutorialSeen = value }
+
+    var boardTourSeen: Int
+        get() = load().boardTourSeen
+        set(value) = edit { it.boardTourSeen = value }
+
     companion object {
         private const val FILE_NAME = "settings.json"
+
+        /** Ids of the bidding systems the app knows. Add one here (and a label) when a new rule table exists. */
+        val BIDDING_SYSTEMS = listOf("sayc")
 
         const val ASK = 0
         const val POST = 1

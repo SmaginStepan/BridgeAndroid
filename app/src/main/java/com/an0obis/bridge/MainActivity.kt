@@ -19,7 +19,10 @@ import com.an0obis.bridge.monetization.Engagement
 import com.an0obis.bridge.ui.BridgeTheme
 import com.an0obis.bridge.ui.MainMenuScreen
 import com.an0obis.bridge.ui.PlaceholderScreen
+import com.an0obis.bridge.model.AppSettings
 import com.an0obis.bridge.ui.misc.AboutScreen
+import com.an0obis.bridge.ui.misc.SettingsScreen
+import com.an0obis.bridge.ui.misc.TutorialScreen
 import com.an0obis.bridge.ui.misc.TopPlayersScreen
 import com.an0obis.bridge.ui.solo.SoloScreen
 import com.an0obis.bridge.ui.misc.openStorePage
@@ -31,6 +34,10 @@ object Routes {
     const val ONLINE = "online"
     const val TOP = "top"
     const val ABOUT = "about"
+    const val SETTINGS = "settings"
+    const val TUTORIAL = "tutorial"
+    /** The tutorial opened by the first tap on Solo play; it continues into the game. */
+    const val TUTORIAL_FIRST = "tutorial_first"
 }
 
 class MainActivity : AppCompatActivity() {
@@ -78,10 +85,15 @@ class MainActivity : AppCompatActivity() {
         NavHost(navController = navController, startDestination = Routes.MENU) {
             composable(Routes.MENU) {
                 MainMenuScreen(
-                    onSolo = { navController.navigate(Routes.SOLO) },
+                    onSolo = {
+                        val first = !AppSettings().tutorialSeen
+                        navController.navigate(if (first) Routes.TUTORIAL_FIRST else Routes.SOLO)
+                    },
                     onSeason = { navController.navigate(Routes.SEASON) },
                     onTop = { navController.navigate(Routes.TOP) },
                     onOnline = { navController.navigate(Routes.ONLINE) },
+                    onTutorial = { navController.navigate(Routes.TUTORIAL) },
+                    onSettings = { navController.navigate(Routes.SETTINGS) },
                     onRate = {
                         openStorePage(this@MainActivity)
                         Engagement.markRated()
@@ -93,6 +105,23 @@ class MainActivity : AppCompatActivity() {
             composable(Routes.SOLO) { SoloScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.SEASON) { PlaceholderScreen(getString(R.string.coming_soon)) }
             composable(Routes.TOP) { TopPlayersScreen(onBack = { navController.popBackStack() }) }
+            composable(Routes.TUTORIAL) {
+                TutorialScreen(onDone = {
+                    AppSettings().tutorialSeen = true
+                    navController.popBackStack()
+                })
+            }
+            composable(Routes.TUTORIAL_FIRST) {
+                TutorialScreen(onDone = {
+                    AppSettings().tutorialSeen = true
+                    navController.navigate(Routes.SOLO) {
+                        popUpTo(Routes.TUTORIAL_FIRST) { inclusive = true }
+                    }
+                })
+            }
+            composable(Routes.SETTINGS) {
+                SettingsScreen(onTutorial = { navController.navigate(Routes.TUTORIAL) })
+            }
             composable(Routes.ONLINE) { PlaceholderScreen(getString(R.string.coming_soon)) }
             composable(Routes.ABOUT) {
                 val version = try {

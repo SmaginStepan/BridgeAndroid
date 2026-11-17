@@ -1,5 +1,6 @@
 package com.an0obis.bridge.ui.solo
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -104,6 +106,34 @@ private fun denominationText(prefix: String, denom: Int, onTable: Boolean): Anno
         }
     }
 
+private fun seatTarget(seat: Int): TourTarget = when (seat) {
+    Seat.NORTH -> TourTarget.SEAT_N
+    Seat.EAST -> TourTarget.SEAT_E
+    else -> TourTarget.SEAT_W
+}
+
+/** The parts of the tour that apply right now: only on the player's own turn, and only if not seen yet. */
+private fun tourPieces(s: TableState, seen: Int): List<TourPiece> {
+    if (s.showSummary || !s.humanToAct) return emptyList()
+    val pieces = mutableListOf<TourPiece>()
+    when (s.phase) {
+        Phase.AUCTION -> if (seen and Tour.AUCTION == 0) pieces += TourPiece(Tour.AUCTION, Tour.auctionSteps)
+        Phase.PLAY -> {
+            if (seen and Tour.PLAY == 0) {
+                val hidden = listOf(Seat.WEST, Seat.EAST, Seat.NORTH).firstOrNull { s.seats[it].cards == null }
+                pieces += TourPiece(Tour.PLAY, Tour.playSteps(hidden?.let { seatTarget(it) }))
+            }
+            // the dummy is on the table only after the opening lead
+            val dummy = s.contract?.dummy
+            if (seen and Tour.DUMMY == 0 && dummy != null && dummy != Seat.SOUTH && s.seats[dummy].cards != null) {
+                pieces += TourPiece(Tour.DUMMY, Tour.dummySteps(seatTarget(dummy)))
+            }
+        }
+        Phase.DONE -> {}
+    }
+    return pieces
+}
+
 @Composable
 fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
     val s by vm.state.collectAsState()
@@ -120,59 +150,96 @@ fun SoloScreen(onBack: () -> Unit, vm: SoloViewModel = viewModel()) {
     }
     var rateLater by remember { mutableStateOf(false) }
     val cloth = remember { BitmapPainter(CardArt.cloth(context)) }
-    Column(modifier = Modifier.fillMaxSize().background(Felt).paint(cloth, contentScale = ContentScale.Crop)) {
-        InfoBar(s)
 
-        if (s.phase == Phase.AUCTION) {
-            // the auction: a scrollable list of the calls made so far fills the middle
-            AuctionList(
-                s,
-                onCallClick = { explainIndex = it },
-                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
-            )
-        } else {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = 2.dp)) {
-                    NorthSeat(s, vm::onCard)
+    // the on-table tour: parts the player has not seen yet are shown when it is their turn
+    val settings = remember { AppSettings() }
+    val bounds = remember { TourBounds() }
+    var tourSeen by remember { mutableIntStateOf(settings.boardTourSeen) }
+    var tourIndex by remember { mutableIntStateOf(0) }
+    val pieces = tourPieces(s, tourSeen)
+    val tourSteps = pieces.flatMap { it.steps }.filter { it.target == null || it.target in bounds.map }
+    val tourStep = tourSteps.getOrNull(tourIndex.coerceAtMost(tourSteps.lastIndex))
+    val endTour = { mask: Int ->
+        tourSeen = tourSeen or mask
+        settings.boardTourSeen = tourSeen
+        tourIndex = 0
+    }
+    val finishTour = { endTour(pieces.fold(0) { acc, p -> acc or p.bit }) }
+    BackHandler(enabled = tourStep != null) { endTour(Tour.ALL) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().background(Felt).paint(cloth, contentScale = ContentScale.Crop)) {
+            Box(modifier = Modifier.tourTarget(bounds, TourTarget.INFO)) { InfoBar(s) }
+
+            if (s.phase == Phase.AUCTION) {
+                // the auction: a scrollable list of the calls made so far fills the middle
+                AuctionList(
+                    s,
+                    onCallClick = { explainIndex = it },
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
+                        .tourTarget(bounds, TourTarget.AUCTION)
+                )
+            } else {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    Box(modifier = Modifier.align(Alignment.TopCenter).padding(top = 2.dp).tourTarget(bounds, TourTarget.SEAT_N)) {
+                        NorthSeat(s, vm::onCard)
+                    }
+                    Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 6.dp).tourTarget(bounds, TourTarget.SEAT_W)) {
+                        SideSeat(s, Seat.WEST)
+                    }
+                    Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp).tourTarget(bounds, TourTarget.SEAT_E)) {
+                        SideSeat(s, Seat.EAST)
+                    }
+                    Box(modifier = Modifier.align(Alignment.Center).tourTarget(bounds, TourTarget.TRICK)) {
+                        TrickArea(s.trick)
+                    }
                 }
-                Box(modifier = Modifier.align(Alignment.CenterStart).padding(start = 6.dp)) {
-                    SideSeat(s, Seat.WEST)
-                }
-                Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp)) {
-                    SideSeat(s, Seat.EAST)
-                }
-                Box(modifier = Modifier.align(Alignment.Center)) {
-                    TrickArea(s.trick)
+            }
+
+            // South: the human's own hand
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth().tourTarget(bounds, TourTarget.HAND)
+            ) {
+                SeatLabel(s, Seat.SOUTH)
+                val south = s.seats[Seat.SOUTH].cards ?: emptyList()
+                val southActive = s.humanToAct && s.phase == Phase.PLAY && s.turnSeat == Seat.SOUTH
+                HandGrid(
+                    cards = south,
+                    legal = if (southActive) s.legalCards else null,
+                    onCard = vm::onCard,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+            }
+
+            Box(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+                when (s.phase) {
+                    // the bidding grid appears only on the player's turn
+                    Phase.AUCTION -> if (s.humanToAct) BidGrid(s.legalCalls, bounds, vm::onCall) else StatusRow(s, bounds, vm::undo) { showConcede = true }
+                    Phase.PLAY -> StatusRow(s, bounds, vm::undo) { showConcede = true }
+                    Phase.DONE -> Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(onClick = onNext, modifier = Modifier.weight(1f)) {
+                            Text(stringResource(if (s.isLastBoard) R.string.solo_session_result else R.string.solo_next))
+                        }
+                        TextButton(onClick = onBack) { Text(stringResource(R.string.solo_menu), color = Color.White) }
+                    }
                 }
             }
         }
 
-        // South: the human's own hand
-        SeatLabel(s, Seat.SOUTH, modifier = Modifier.align(Alignment.CenterHorizontally))
-        val south = s.seats[Seat.SOUTH].cards ?: emptyList()
-        val southActive = s.humanToAct && s.phase == Phase.PLAY && s.turnSeat == Seat.SOUTH
-        HandGrid(
-            cards = south,
-            legal = if (southActive) s.legalCards else null,
-            onCard = vm::onCard,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-
-        Box(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-            when (s.phase) {
-                // the bidding grid appears only on the player's turn
-                Phase.AUCTION -> if (s.humanToAct) BidGrid(s.legalCalls, vm::onCall) else StatusRow(s, vm::undo) { showConcede = true }
-                Phase.PLAY -> StatusRow(s, vm::undo) { showConcede = true }
-                Phase.DONE -> Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(onClick = onNext, modifier = Modifier.weight(1f)) {
-                        Text(stringResource(if (s.isLastBoard) R.string.solo_session_result else R.string.solo_next))
-                    }
-                    TextButton(onClick = onBack) { Text(stringResource(R.string.solo_menu), color = Color.White) }
-                }
-            }
+        if (tourStep != null) {
+            val index = tourSteps.indexOf(tourStep)
+            BoardTourOverlay(
+                step = tourStep,
+                number = index + 1,
+                total = tourSteps.size,
+                target = tourStep.target?.let { bounds.map[it] },
+                onNext = { if (index < tourSteps.lastIndex) tourIndex = index + 1 else finishTour() },
+                onSkip = { endTour(Tour.ALL) }
+            )
         }
     }
 
@@ -554,14 +621,17 @@ private fun AuctionList(s: TableState, onCallClick: (Int) -> Unit, modifier: Mod
 
 /** The status text with the Undo and Concede buttons next to it when they apply. */
 @Composable
-private fun StatusRow(s: TableState, onUndo: () -> Unit, onConcede: () -> Unit) {
+private fun StatusRow(s: TableState, bounds: TourBounds, onUndo: () -> Unit, onConcede: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Box(modifier = Modifier.weight(1f)) { StatusLine(s) }
+        Box(modifier = Modifier.weight(1f).tourTarget(bounds, TourTarget.STATUS)) { StatusLine(s) }
         if (s.canUndo) {
             TextButton(onClick = onUndo) { Text(stringResource(R.string.solo_undo), color = AccentGold) }
         }
         if (s.canConcede) {
-            TextButton(onClick = onConcede) { Text(stringResource(R.string.solo_concede), color = LabelColor) }
+            TextButton(
+                onClick = onConcede,
+                modifier = Modifier.tourTarget(bounds, TourTarget.CONCEDE)
+            ) { Text(stringResource(R.string.solo_concede), color = LabelColor) }
         }
     }
 }
@@ -610,22 +680,30 @@ private fun BidKey(
  * Shown only on the player's turn, so [legal] is never empty.
  */
 @Composable
-private fun BidGrid(legal: Set<Call>, onCall: (Call) -> Unit) {
+private fun BidGrid(legal: Set<Call>, bounds: TourBounds, onCall: (Call) -> Unit) {
     val levels = (1..7).filter { l -> legal.any { it is Call.Bid && it.level == l } }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        for (level in levels) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (denom in Suit.CLUBS..Suit.NO_TRUMP) {
-                    val bid = Call.Bid(level, denom)
-                    BidKey(
-                        label = denominationText(level.toString(), denom, onTable = false),
-                        enabled = bid in legal,
-                        modifier = Modifier.weight(1f)
-                    ) { onCall(bid) }
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.tourTarget(bounds, TourTarget.BID_GRID)
+        ) {
+            for (level in levels) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for (denom in Suit.CLUBS..Suit.NO_TRUMP) {
+                        val bid = Call.Bid(level, denom)
+                        BidKey(
+                            label = denominationText(level.toString(), denom, onTable = false),
+                            enabled = bid in legal,
+                            modifier = Modifier.weight(1f)
+                        ) { onCall(bid) }
+                    }
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.tourTarget(bounds, TourTarget.BID_SPECIAL)
+        ) {
             BidKey(
                 label = AnnotatedString(stringResource(R.string.bid_pass)),
                 enabled = Call.Pass in legal,

@@ -46,6 +46,8 @@ fun MainMenuScreen(
     onSeason: () -> Unit,
     onTop: () -> Unit,
     onOnline: () -> Unit,
+    onTutorial: () -> Unit,
+    onSettings: () -> Unit,
     onRate: () -> Unit,
     onPrivacy: () -> Unit,
     onAbout: () -> Unit
@@ -83,6 +85,8 @@ fun MainMenuScreen(
         MenuItem(stringResource(R.string.menu_season), stringResource(R.string.menu_season_sub), onSeason)
         MenuItem(stringResource(R.string.menu_top), stringResource(R.string.menu_top_sub), onTop)
         MenuItem(stringResource(R.string.mp_menu), stringResource(R.string.mp_menu_sub), onOnline)
+        MenuItem(stringResource(R.string.menu_learning), stringResource(R.string.menu_howto_sub), onTutorial)
+        MenuItem(stringResource(R.string.menu_settings), stringResource(R.string.menu_prefs_sub), onSettings)
         val adFree by BillingManager.adFree.collectAsState()
         var showRemoveAds by remember { mutableStateOf(false) }
         if (AdsManager.enabled && !adFree) {
