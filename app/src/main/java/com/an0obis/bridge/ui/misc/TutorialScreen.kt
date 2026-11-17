@@ -26,11 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.an0obis.bridge.R
@@ -117,19 +114,19 @@ private fun PointCards() {
 /** ♣ < ♦ < ♥ < ♠ < NT */
 @Composable
 private fun SuitOrder() {
-    val text = buildAnnotatedString {
-        listOf(Suit.CLUBS, Suit.DIAMONDS, Suit.HEARTS, Suit.SPADES, Suit.NO_TRUMP).forEachIndexed { i, suit ->
-            if (i > 0) withStyle(SpanStyle(color = Color(0xFF777777))) { append("  <  ") }
-            withStyle(SpanStyle(color = suitColor(suit))) { append(suitSymbol(suit)) }
-        }
-    }
-    Box(
+    // separate items in one Row, so the line never wraps on a narrow screen
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFFF2F2F2))
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        Text(text, fontSize = 30.sp)
+        listOf(Suit.CLUBS, Suit.DIAMONDS, Suit.HEARTS, Suit.SPADES, Suit.NO_TRUMP).forEachIndexed { i, suit ->
+            if (i > 0) Text("<", fontSize = 18.sp, color = Color(0xFF777777))
+            Text(suitSymbol(suit), fontSize = 26.sp, color = suitColor(suit))
+        }
     }
 }
 

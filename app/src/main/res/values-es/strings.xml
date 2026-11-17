@@ -199,13 +199,13 @@
     <string name="about_author">Autor: Stepan Smagin</string>
     <string name="about_designer">Diseñadora: Anna Zhelnina</string>
     <string name="about_version">Versión: %s</string>
-    <string name="about_desc">Juego de cartas Preferans.</string>
+    <string name="about_desc">Un juego de bridge duplicado para tu teléfono.</string>
     <string name="about_features">Características:</string>
-    <string name="about_f1">- Admite diversas variantes de reglas y ajustes.</string>
-    <string name="about_f2">- Modo de juego contra el dispositivo</string>
-    <string name="about_f3">- Hoja de puntuación con cálculo de whists</string>
-    <string name="about_f4">- Curso de aprendizaje y glosario de Preferans</string>
-    <string name="about_f5">- Multijugador en línea con amigos mediante el servidor Preferans</string>
+    <string name="about_f1">- Bridge duplicado: los bots juegan las mismas manos y tu resultado se mide en matchpoints</string>
+    <string name="about_f2">- Juego en solitario con un compañero bot contra dos bots, o una partida en línea con amigos</string>
+    <string name="about_f3">- Toca cualquier llamada de la subasta para ver su significado (SAYC)</string>
+    <string name="about_f4">- Tutorial ilustrado y una visita guiada de la mesa</string>
+    <string name="about_f5">- Temporadas mensuales y una lista mundial de los mejores jugadores</string>
     <string name="about_privacy">Política de privacidad</string>
     <string name="about_support">Soporte</string>
 
