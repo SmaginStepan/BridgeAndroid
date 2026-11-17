@@ -13,8 +13,8 @@ android {
         applicationId = "com.an0obis.bridge"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
 
         // ScoreServer credentials for this game live in ~/.gradle/gradle.properties (never in git):
         //   scoreApiKey=...   scoreSecret=...
