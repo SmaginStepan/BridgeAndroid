@@ -1,8 +1,16 @@
 package com.an0obis.bridge.ui.solo
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.key
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -211,7 +219,7 @@ fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: SoloViewMo
                         SideSeat(s, Seat.EAST)
                     }
                     Box(modifier = Modifier.align(Alignment.Center).tourTarget(bounds, TourTarget.TRICK)) {
-                        TrickArea(s.trick)
+                        TrickArea(s.trick, s.collectTo)
                     }
                 }
             }
@@ -248,6 +256,17 @@ fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: SoloViewMo
                     }
                 }
             }
+        }
+
+        // a finished trick lies on the table for a moment: a tap anywhere takes it at once
+        if (s.trickDone && s.collectTo == null) {
+            Box(
+                modifier = Modifier.fillMaxSize().clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = vm::takeTrick
+                )
+            )
         }
 
         if (tourStep != null) {
@@ -532,18 +551,46 @@ private fun SideSeat(s: TableState, seat: Int) {
 
 /** The cards played to the current trick, laid out like a compass. */
 @Composable
-private fun TrickArea(trick: List<Pair<Int, Card>>) {
+private fun TrickArea(trick: List<Pair<Int, Card>>, collectTo: Int?) {
     Box(modifier = Modifier.size(176.dp, 150.dp)) {
         for ((seat, card) in trick) {
-            val (x, y) = when (seat) {
-                Seat.NORTH -> 65.dp to 0.dp
-                Seat.WEST -> 0.dp to 42.dp
-                Seat.EAST -> 130.dp to 42.dp
-                else -> 65.dp to 84.dp
-            }
-            CardFace(card, 52.dp, modifier = Modifier.offset(x, y))
+            key(card) { TrickCard(seat, card, collectTo) }
         }
     }
+}
+
+/** Where a seat's card lies on the table. */
+private fun trickSpot(seat: Int): Pair<Dp, Dp> = when (seat) {
+    Seat.NORTH -> 65.dp to 0.dp
+    Seat.WEST -> 0.dp to 42.dp
+    Seat.EAST -> 130.dp to 42.dp
+    else -> 65.dp to 84.dp
+}
+
+/** The direction (towards the player's seat) a card comes from, or is swept to. */
+private fun towards(seat: Int): Pair<Dp, Dp> = when (seat) {
+    Seat.NORTH -> 0.dp to (-90).dp
+    Seat.WEST -> (-110).dp to 0.dp
+    Seat.EAST -> 110.dp to 0.dp
+    else -> 0.dp to 110.dp
+}
+
+/** A card slides in from its player when played, and is swept to the winner when the trick is taken. */
+@Composable
+private fun TrickCard(seat: Int, card: Card, collectTo: Int?) {
+    var arrived by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { arrived = true }
+    val (restX, restY) = trickSpot(seat)
+    val (dx, dy) = if (collectTo != null) towards(collectTo) else if (arrived) 0.dp to 0.dp else towards(seat)
+    val spec = tween<Dp>(if (collectTo != null) 200 else 160, easing = FastOutSlowInEasing)
+    val x by animateDpAsState(restX + dx, spec, label = "card x")
+    val y by animateDpAsState(restY + dy, spec, label = "card y")
+    val alpha by animateFloatAsState(
+        if (collectTo == null && arrived) 1f else 0f,
+        tween(if (collectTo != null) 200 else 120),
+        label = "card alpha"
+    )
+    CardFace(card, 52.dp, modifier = Modifier.offset(x, y).graphicsLayer { this.alpha = alpha })
 }
 
 /** The text for a bidding-system meaning, looked up by rule id (`sayc_<id>` string resources). */

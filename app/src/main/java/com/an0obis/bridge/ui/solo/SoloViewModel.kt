@@ -30,11 +30,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** One seat as the table shows it. [cards] is null for a hidden hand; [count] is how many cards remain. */
 data class SeatView(val cards: List<Card>?, val count: Int)
@@ -76,6 +78,10 @@ data class TableState(
     val showSummary: Boolean = false,
     val canUndo: Boolean = false,
     val canConcede: Boolean = false,
+    /** The four cards of a finished trick are on the table, waiting to be taken (a tap takes them at once). */
+    val trickDone: Boolean = false,
+    /** While the finished trick is swept away: the seat of the side that won it. */
+    val collectTo: Int? = null,
     /** The session is over and the player has not yet said whether to join the leaderboard. */
     val leaderboardAsk: Boolean = false
 ) {
@@ -104,6 +110,12 @@ class SoloViewModel : ViewModel() {
 
         /** How long the human can still undo before the bots answer. */
         private const val UNDO_WINDOW_MS = 900L
+
+        /** How long a finished trick stays on the table unless the player taps. */
+        private const val TRICK_PAUSE_MS = 1000L
+
+        /** The sweep of the finished trick to its winner. */
+        private const val COLLECT_MS = 200L
     }
 
     private enum class Kind { HUMAN, BOT, AUTO }
@@ -134,6 +146,12 @@ class SoloViewModel : ViewModel() {
 
     /** The just-finished trick stays on the table for a moment so the player can see it. */
     private var lingering: List<Pair<Int, Card>>? = null
+
+    /** Set for a moment while the lingering trick is swept to its winner. */
+    private var collectTo: Int? = null
+
+    /** A tap on the table: the lingering trick is taken without waiting out the pause. */
+    private val takeSignal = Channel<Unit>(Channel.CONFLATED)
     private var busy = false
     private var job: Job? = null
 
@@ -186,6 +204,11 @@ class SoloViewModel : ViewModel() {
         }
     }
 
+    /** The player tapped the table: the finished trick goes to its winner now. */
+    fun takeTrick() {
+        if (lingering != null) takeSignal.trySend(Unit)
+    }
+
     fun closeAdvice() {
         adviceToken++
         _advice.value = AdviceUi.None
@@ -230,6 +253,7 @@ class SoloViewModel : ViewModel() {
             game = BoardGame(boardNumber, dealHands)
             actions.clear()
             lingering = null
+            collectTo = null
             for (a in keep) {
                 when (val x = a.item) {
                     is Call -> game.call(x)
@@ -305,6 +329,7 @@ class SoloViewModel : ViewModel() {
         ending = Ending.PLAYED
         actions.clear()
         lingering = null
+        collectTo = null
         run()
     }
 
@@ -325,7 +350,12 @@ class SoloViewModel : ViewModel() {
             val trick = play.tricks.last()
             lingering = trick.cards.mapIndexed { i, c -> (trick.leader + i) % 4 to c }
             publish()
-            delay(1000L)
+            takeSignal.tryReceive() // forget an old tap
+            withTimeoutOrNull(TRICK_PAUSE_MS) { takeSignal.receive() }
+            collectTo = trick.winner
+            publish()
+            delay(COLLECT_MS)
+            collectTo = null
             lingering = null
         }
         publish()
@@ -451,6 +481,8 @@ class SoloViewModel : ViewModel() {
             showSummary = showSummary,
             canUndo = canUndoNow(),
             canConcede = acting && g.phase == Phase.PLAY,
+            trickDone = lingering != null,
+            collectTo = collectTo,
             leaderboardAsk = showSummary && leaderboardChoice == AppSettings.ASK
         )
     }
