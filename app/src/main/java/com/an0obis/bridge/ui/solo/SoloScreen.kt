@@ -51,6 +51,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.an0obis.bridge.R
+import com.an0obis.bridge.model.advice.BiddingGuide
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.material3.Surface
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
 import com.an0obis.bridge.model.Call
 import com.an0obis.bridge.model.Card
 import com.an0obis.bridge.model.Phase
@@ -263,11 +273,14 @@ fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: SoloViewMo
     }
 
     val adviceUi by vm.advice.collectAsState()
+    var guideSection by remember { mutableStateOf<String?>(null) }
     AdviceDialog(
         state = adviceUi,
         onDo = { a -> a.call?.let { vm.onCall(it) }; a.card?.let { vm.onCard(it) } },
-        onClose = vm::closeAdvice
+        onClose = vm::closeAdvice,
+        onMore = { guideSection = it }
     )
+    guideSection?.let { section -> BiddingGuideDialog(initial = section, onClose = { guideSection = null }) }
 
     if (showConcede && s.canConcede) {
         AlertDialog(
@@ -619,18 +632,94 @@ private fun reasonText(reason: Reason): AnnotatedString {
     val args = reason.args.map { a ->
         if (a.startsWith("@seat:")) seatLetter(a.removePrefix("@seat:").toInt()) else a
     }
-    val text = context.getString(id, *args.toTypedArray())
-    return buildAnnotatedString {
-        for (ch in text) {
-            if (ch == '♥' || ch == '♦') withStyle(SpanStyle(color = suitColorOnTable(Suit.HEARTS))) { append(ch) }
-            else append(ch)
+    return coloredSuits(context.getString(id, *args.toTypedArray()))
+}
+
+/** [text] with hearts and diamonds in red (the light red that reads on a dark dialog). */
+private fun coloredSuits(text: String): AnnotatedString = buildAnnotatedString {
+    for (ch in text) {
+        when (ch) {
+            // U+FE0E asks for the plain text glyph, which takes the colour (the emoji glyph is a fixed grey or red)
+            '♥', '♦' -> withStyle(SpanStyle(color = suitColorOnTable(Suit.HEARTS))) { append(ch); append('︎') }
+            '♣', '♠' -> withStyle(SpanStyle(color = suitColorOnTable(Suit.SPADES))) { append(ch); append('︎') }
+            else -> append(ch)
+        }
+    }
+}
+
+/**
+ * The bidding guide, full screen over the table: a list of sections that open and close when tapped.
+ * The section for the player's current situation ([initial]) is open and scrolled into view.
+ */
+@Composable
+private fun BiddingGuideDialog(initial: String, onClose: () -> Unit) {
+    val context = LocalContext.current
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            val ids = BiddingGuide.sectionIds
+            var open by remember { mutableStateOf(setOf(initial)) }
+            val list = rememberLazyListState()
+            // item 0 is the intro text; wait for the first layout, then bring the section to the top
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(200)
+                list.animateScrollToItem(ids.indexOf(initial).coerceAtLeast(0) + 1)
+            }
+            Column(modifier = Modifier.systemBarsPadding().padding(horizontal = 16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    Text(
+                        stringResource(R.string.guide_title),
+                        fontSize = 26.sp,
+                        fontFamily = FontFamily.Serif,
+                        color = AccentGold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onClose) { Text(stringResource(R.string.guide_close)) }
+                }
+                LazyColumn(state = list, modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    item {
+                        Text(
+                            stringResource(R.string.guide_intro),
+                            fontSize = 14.sp,
+                            color = Color(0xFF999999),
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                    items(ids) { id ->
+                        val isOpen = id in open
+                        val title = context.getString(context.resources.getIdentifier("guide_${id}_t", "string", context.packageName))
+                        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { open = if (isOpen) open - id else open + id }
+                                    .padding(vertical = 12.dp)
+                            ) {
+                                Text(
+                                    coloredSuits(title),
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isOpen) AccentGold else Color.Unspecified,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(if (isOpen) "▾" else "▸", fontSize = 18.sp, color = AccentGold)
+                            }
+                            if (isOpen) {
+                                val body = context.getString(context.resources.getIdentifier("guide_${id}_b", "string", context.packageName))
+                                Text(coloredSuits(body), fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.padding(bottom = 12.dp))
+                            }
+                            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color(0x33FFFFFF)))
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 /** What to bid or play, and why: closed, being worked out, or the answer with "Do it" and "Close". */
 @Composable
-private fun AdviceDialog(state: AdviceUi, onDo: (Advice) -> Unit, onClose: () -> Unit) {
+private fun AdviceDialog(state: AdviceUi, onDo: (Advice) -> Unit, onClose: () -> Unit, onMore: (String) -> Unit) {
     when (state) {
         is AdviceUi.None -> {}
         is AdviceUi.Loading -> AlertDialog(
@@ -669,6 +758,13 @@ private fun AdviceDialog(state: AdviceUi, onDo: (Advice) -> Unit, onClose: () ->
                                     Text(ranges, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
                                 }
                             }
+                        }
+                        // for a bid: the guide to bidding and to the bidding system, opened at the matching section
+                        if (advice.call != null) {
+                            TextButton(
+                                onClick = { onMore(BiddingGuide.sectionFor(meaning?.ruleId, advice.reasons)) },
+                                modifier = Modifier.align(Alignment.Start)
+                            ) { Text(stringResource(R.string.guide_btn)) }
                         }
                     }
                 },
