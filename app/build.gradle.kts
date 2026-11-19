@@ -15,8 +15,8 @@ android {
         applicationId = "com.an0obis.bridge"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.3.1"
+        versionCode = 5
+        versionName = "0.3.2"
 
         // ScoreServer credentials live in the root's gitignored score-secrets.properties,
         // or in ~/.gradle/gradle.properties / -P properties for CI (never in git):
