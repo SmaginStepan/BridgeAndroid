@@ -22,7 +22,9 @@ import com.an0obis.bridge.model.advice.BidAdvisor
 import com.an0obis.bridge.model.advice.PlayAdvisor
 import com.an0obis.bridge.model.play.Claims
 import com.an0obis.bridge.monetization.Engagement
+import com.an0obis.bridge.model.sayc.Meaning
 import com.an0obis.bridge.model.sayc.SaycBot
+import com.an0obis.bridge.model.sayc.SystemCatalog
 import com.an0obis.bridge.model.session.Baseline
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -123,6 +125,9 @@ class SoloViewModel : ViewModel() {
 
     private val human = Seat.SOUTH
 
+    /** The bidding systems of this session: the player's side and the opponents (read from the settings). */
+    private var seating = SystemCatalog.seating()
+
     private var seed = newSeed()
     private var boardNumber = 1
     private var dealHands: List<Hand> = dealFor(boardNumber)
@@ -173,14 +178,15 @@ class SoloViewModel : ViewModel() {
     private fun dealFor(n: Int) = Deck.deal(SeasonRandom.forPurpose(seed, "deal", n))
 
     private fun newBots(n: Int): List<Bot> =
-        List(4) { seat -> SaycBot(SeasonRandom.forPurpose(seed, "bots", n * 4 + seat)) }
+        List(4) { seat -> SaycBot(SeasonRandom.forPurpose(seed, "bots", n * 4 + seat), seating = seating) }
 
     /** The bot tables for this board are played in the background while the human plays. */
     private fun startField(): Deferred<List<Int>> {
         val s = seed
         val n = boardNumber
         val hands = dealHands
-        return viewModelScope.async(Dispatchers.Default) { Baseline.field(s, n, hands) }
+        val systems = seating
+        return viewModelScope.async(Dispatchers.Default) { Baseline.field(s, n, hands, systems) }
     }
 
     // ------------------------------------------------------------------ the human's moves
@@ -197,11 +203,20 @@ class SoloViewModel : ViewModel() {
         _advice.value = AdviceUi.Loading
         viewModelScope.launch {
             val advice = withContext(Dispatchers.Default) {
-                if (auction) BidAdvisor.advise(view.auction.dealer, view.auction.calls, view.actingHand)
-                else PlayAdvisor.advise(view)
+                if (auction) BidAdvisor.advise(view.auction.dealer, view.auction.calls, view.actingHand, seating)
+                else PlayAdvisor.advise(view, seating = seating)
             }
             if (token == adviceToken) _advice.value = AdviceUi.Ready(advice)
         }
+    }
+
+    /** The system of the player and partner in this session (the guide explains it). */
+    val ourSystem: com.an0obis.bridge.model.sayc.SystemConfig get() = seating.ns.config
+
+    /** The meanings of the call at [index] of this board's auction, in the system of the side that made it. */
+    fun explain(index: Int): List<Meaning> {
+        val auction = game.auction
+        return seating.explain(auction.dealer, auction.calls, index)
     }
 
     /** The player tapped the table: the finished trick goes to its winner now. */
@@ -282,6 +297,7 @@ class SoloViewModel : ViewModel() {
         job?.cancel()
         fieldTables.cancel()
         seed = newSeed()
+        seating = SystemCatalog.seating() // a new session picks up a system changed in the settings
         boardNumber = 1
         records.clear()
         showSummary = false

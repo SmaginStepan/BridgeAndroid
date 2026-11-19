@@ -26,6 +26,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.os.LocaleListCompat
 import com.an0obis.bridge.R
 import com.an0obis.bridge.model.AppSettings
+import com.an0obis.bridge.model.sayc.SystemCatalog
+import com.an0obis.bridge.model.sayc.SystemConfig
+import com.an0obis.bridge.ui.system.systemDescription
+import com.an0obis.bridge.ui.system.systemName
 import com.an0obis.bridge.ui.AccentGold
 
 /** Language tags the app is translated into; "" means "follow the system". */
@@ -47,10 +51,33 @@ private fun languageLabel(tag: String): String = when (tag) {
     else -> stringResource(R.string.language_system)
 }
 
+/** A system to choose: its name and one line about it, and an "Edit" link for the player's own systems. */
 @Composable
-private fun systemLabel(id: String): String = when (id) {
-    "sayc" -> stringResource(R.string.set_system_sayc)
-    else -> id
+private fun SystemRow(config: SystemConfig, selected: Boolean, onClick: () -> Unit, onEdit: (() -> Unit)?) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Column(modifier = Modifier.weight(1f).padding(vertical = 4.dp)) {
+            Text(systemName(config), fontSize = 18.sp)
+            Text(
+                com.an0obis.bridge.ui.system.coloredSuits(systemDescription(config)),
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            )
+        }
+        if (onEdit != null) {
+            Text(
+                stringResource(R.string.set_system_edit),
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable(onClick = onEdit).padding(horizontal = 8.dp, vertical = 8.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -78,10 +105,13 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-fun SettingsScreen(onTutorial: () -> Unit) {
+fun SettingsScreen(onTutorial: () -> Unit, onEditSystem: (String?) -> Unit) {
     val settings = remember { AppSettings() }
     var language by remember { mutableStateOf(currentLanguageTag()) }
-    var system by remember { mutableStateOf(settings.biddingSystem) }
+    // read again whenever the screen is shown, so a system made in the builder appears at once
+    val systems = remember { SystemCatalog.all() }
+    var ours by remember { mutableStateOf(settings.biddingSystem) }
+    var theirs by remember { mutableStateOf(settings.opponentSystem) }
     var tourReset by remember { mutableStateOf(false) }
 
     Column(
@@ -106,12 +136,33 @@ fun SettingsScreen(onTutorial: () -> Unit) {
             }
         }
 
-        SectionTitle(stringResource(R.string.set_system))
-        AppSettings.BIDDING_SYSTEMS.forEach { id ->
-            ChoiceRow(systemLabel(id), system == id) {
-                system = id
-                settings.biddingSystem = id
-            }
+        SectionTitle(stringResource(R.string.set_system_ours))
+        systems.forEach { config ->
+            SystemRow(
+                config,
+                selected = ours == config.id,
+                onClick = { ours = config.id; settings.biddingSystem = config.id },
+                onEdit = if (config.isPreset) null else { { onEditSystem(config.id) } }
+            )
+        }
+        Text(
+            text = stringResource(R.string.set_system_create),
+            fontSize = 18.sp,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onEditSystem(null) }
+                .padding(vertical = 8.dp)
+        )
+
+        SectionTitle(stringResource(R.string.set_system_theirs))
+        systems.forEach { config ->
+            SystemRow(
+                config,
+                selected = theirs == config.id,
+                onClick = { theirs = config.id; settings.opponentSystem = config.id },
+                onEdit = null
+            )
         }
         Text(
             text = stringResource(R.string.set_system_note),

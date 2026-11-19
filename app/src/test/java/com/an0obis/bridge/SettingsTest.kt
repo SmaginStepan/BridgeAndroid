@@ -42,6 +42,6 @@ class SettingsTest {
 
     @Test
     fun everyListedSystemIsKnown() {
-        assertTrue("sayc" in AppSettings.BIDDING_SYSTEMS)
+        assertTrue("sayc" in com.an0obis.bridge.model.sayc.SystemConfig.PRESET_IDS)
     }
 }

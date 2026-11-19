@@ -6,7 +6,7 @@ import com.an0obis.bridge.model.Suit
 import com.an0obis.bridge.model.sayc.AuctionState
 import com.an0obis.bridge.model.sayc.Fallback
 import com.an0obis.bridge.model.sayc.HandInfo
-import com.an0obis.bridge.model.sayc.SaycRules
+import com.an0obis.bridge.model.sayc.Seating
 import com.an0obis.bridge.model.sayc.suitSymbolText
 
 /**
@@ -15,26 +15,27 @@ import com.an0obis.bridge.model.sayc.suitSymbolText
  */
 object BidAdvisor {
 
-    fun advise(dealer: Int, calls: List<Call>, hand: Hand): Advice {
+    fun advise(dealer: Int, calls: List<Call>, hand: Hand, seating: Seating = Seating.SAYC): Advice {
         val state = AuctionState(dealer, calls)
+        val system = seating.of(state.seat)
         val info = HandInfo(hand)
         val reasons = mutableListOf<Reason>()
         reasons += Reason("hand", listOf(info.hcp.toString(), shape(info)))
 
-        val rule = SaycRules.firstFitting(state, info)
+        val rule = system.firstFitting(state, info)
         if (rule != null) {
             val call = if (state.auction.isLegal(rule.call)) rule.call else Call.Pass
             return Advice(call, null, reasons, if (call == rule.call) rule.meaning() else null)
         }
 
-        val partner = Fallback.partnerInfo(state)
+        val partner = Fallback.partnerInfo(state, system)
         if (partner.minHcp > 0) {
             reasons += if (partner.maxHcp < 40)
                 Reason("partner_range", listOf(partner.minHcp.toString(), partner.maxHcp.toString()))
             else
                 Reason("partner_min", listOf(partner.minHcp.toString()))
         }
-        val decision = Fallback.decideWithWhy(state, info, partner)
+        val decision = Fallback.decideWithWhy(state, info, system, partner)
         val call = if (state.auction.isLegal(decision.call)) decision.call else Call.Pass
         reasons += Reason(decision.key, decision.args)
         return Advice(call, null, reasons)

@@ -6,6 +6,7 @@ import com.an0obis.bridge.model.DealRandom
 import com.an0obis.bridge.model.DefaultRandom
 import com.an0obis.bridge.model.Suit
 import com.an0obis.bridge.model.sayc.SaycBot
+import com.an0obis.bridge.model.sayc.Seating
 import com.an0obis.bridge.model.sayc.suitSymbolText
 
 /**
@@ -15,8 +16,8 @@ import com.an0obis.bridge.model.sayc.suitSymbolText
  */
 object PlayAdvisor {
 
-    fun advise(view: BotView, rnd: DealRandom = DefaultRandom, worlds: Int = 100): Advice {
-        val card = SaycBot(rnd, worlds).chooseCard(view)
+    fun advise(view: BotView, rnd: DealRandom = DefaultRandom, worlds: Int = 100, seating: Seating = Seating.SAYC): Advice {
+        val card = SaycBot(rnd, worlds, seating = seating).chooseCard(view)
         return explain(view, card)
     }
 

@@ -24,7 +24,8 @@ object DefaultRandom : DealRandom {
  *  - stream seed: SHA-256 of the UTF-8 text "<seedHex>|<purpose>|<index>",
  *    first 8 bytes read big-endian as an unsigned 64-bit state;
  *  - purposes: "deal" (index = deal number), "bots" (index = deal number),
- *    "config" (index = 0);
+ *    "config" (index = 0), "opponent-system" (index = 0: nextInt over the list
+ *    SystemCatalog.SEASON_OPPONENT_SYSTEMS gives the opponent bots' bidding system);
  *  - next(): SplitMix64 — state += 0x9E3779B97F4A7C15; z = state;
  *    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9;
  *    z = (z ^ (z >> 27)) * 0x94D049BB133111EB; return z ^ (z >> 31);

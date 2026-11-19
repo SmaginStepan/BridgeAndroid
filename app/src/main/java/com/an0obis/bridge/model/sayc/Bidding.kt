@@ -71,7 +71,8 @@ data class Need(val suit: Int, val min: Int = 0, val max: Int = 13)
 /**
  * One line of the bidding system: in [situation], a hand with [hcp] points, the [needs] suit lengths
  * and (optionally) a balanced or unbalanced shape makes [call]. [extra] holds conditions that are
- * about choosing between rules (for example "spades at least as long as hearts").
+ * about choosing between rules (for example "spades at least as long as hearts"). After a
+ * [gameForcing] call the partnership must not stop below game.
  */
 class Rule(
     val id: String,
@@ -80,7 +81,8 @@ class Rule(
     val needs: List<Need>,
     val balanced: Boolean?,
     val situation: (AuctionState) -> Boolean,
-    val extra: (HandInfo, AuctionState) -> Boolean
+    val extra: (HandInfo, AuctionState) -> Boolean,
+    val gameForcing: Boolean = false
 ) {
     fun fits(h: HandInfo, s: AuctionState): Boolean =
         s.auction.isLegal(call) &&

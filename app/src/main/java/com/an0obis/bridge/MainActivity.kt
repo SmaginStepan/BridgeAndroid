@@ -22,6 +22,9 @@ import com.an0obis.bridge.ui.PlaceholderScreen
 import com.an0obis.bridge.model.AppSettings
 import com.an0obis.bridge.ui.misc.AboutScreen
 import com.an0obis.bridge.ui.misc.SettingsScreen
+import com.an0obis.bridge.ui.system.SystemBuilderScreen
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.an0obis.bridge.ui.misc.TutorialScreen
 import com.an0obis.bridge.ui.misc.TopPlayersScreen
 import com.an0obis.bridge.ui.solo.SoloScreen
@@ -35,6 +38,9 @@ object Routes {
     const val TOP = "top"
     const val ABOUT = "about"
     const val SETTINGS = "settings"
+    /** The bidding-system builder; with an id it edits one of the player's systems. */
+    const val SYSTEM_BUILDER = "system_builder?id={id}"
+    fun systemBuilder(id: String?) = "system_builder" + if (id != null) "?id=$id" else ""
     const val TUTORIAL = "tutorial"
     /** The tutorial opened by the first tap on Solo play; it continues into the game. */
     const val TUTORIAL_FIRST = "tutorial_first"
@@ -120,7 +126,19 @@ class MainActivity : AppCompatActivity() {
                 })
             }
             composable(Routes.SETTINGS) {
-                SettingsScreen(onTutorial = { navController.navigate(Routes.TUTORIAL) })
+                SettingsScreen(
+                    onTutorial = { navController.navigate(Routes.TUTORIAL) },
+                    onEditSystem = { id -> navController.navigate(Routes.systemBuilder(id)) }
+                )
+            }
+            composable(
+                Routes.SYSTEM_BUILDER,
+                arguments = listOf(navArgument("id") { type = NavType.StringType; nullable = true; defaultValue = null })
+            ) { entry ->
+                SystemBuilderScreen(
+                    editId = entry.arguments?.getString("id"),
+                    onDone = { navController.popBackStack() }
+                )
             }
             composable(Routes.ONLINE) { PlaceholderScreen(getString(R.string.coming_soon)) }
             composable(Routes.ABOUT) {

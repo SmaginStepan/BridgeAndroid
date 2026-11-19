@@ -19,8 +19,10 @@ internal fun suitSymbolText(suit: Int): String = when (suit) {
     else -> "NT"
 }
 
-/** What the partner's calls tell us so far. */
-class PartnerInfo(val minHcp: Int, val maxHcp: Int, val minLen: IntArray) {
+/**
+ * What the partner's calls tell us so far. [gameForcing]: a call of our side promised to reach game.
+ */
+class PartnerInfo(val minHcp: Int, val maxHcp: Int, val minLen: IntArray, val gameForcing: Boolean = false) {
     /** A middle-of-the-road guess of partner's points. */
     val expectedHcp: Int get() = (minHcp + minOf(maxHcp, minHcp + 5)) / 2
 }
@@ -32,14 +34,14 @@ class PartnerInfo(val minHcp: Int, val maxHcp: Int, val minLen: IntArray) {
  */
 object Fallback {
 
-    fun partnerInfo(state: AuctionState): PartnerInfo {
+    fun partnerInfo(state: AuctionState, system: BiddingSystem): PartnerInfo {
         var min = 0
         var max = 40
         val lens = IntArray(4)
         for ((i, e) in state.entries.withIndex()) {
             if (e.seat != state.partner || e.call is Call.Pass) continue
             val prefix = AuctionState(state.dealer, state.calls.take(i))
-            val rules = SaycRules.matching(prefix, e.call)
+            val rules = system.matching(prefix, e.call)
             if (rules.isNotEmpty()) {
                 min = maxOf(min, rules.minOf { it.hcp.first })
                 max = minOf(max, rules.maxOf { it.hcp.last })
@@ -54,7 +56,7 @@ object Fallback {
             }
         }
         if (max < min) max = min
-        return PartnerInfo(min, max, lens)
+        return PartnerInfo(min, max, lens, gameForcingCall(state, system))
     }
 
     private fun isGame(bid: Call.Bid): Boolean = when (bid.denom) {
@@ -67,11 +69,27 @@ object Fallback {
     class Decision(val call: Call, val key: String, val args: List<String> = emptyList())
 
     /** [info] can be passed in when the same position is judged for many hands. */
-    fun decide(state: AuctionState, hand: HandInfo, info: PartnerInfo = partnerInfo(state)): Call =
-        decideWithWhy(state, hand, info).call
+    fun decide(
+        state: AuctionState,
+        hand: HandInfo,
+        system: BiddingSystem,
+        info: PartnerInfo = partnerInfo(state, system)
+    ): Call = decideWithWhy(state, hand, system, info).call
+
+    /** True if a call of our side so far promised to reach game (a game-forcing rule of [system]). */
+    private fun gameForcingCall(state: AuctionState, system: BiddingSystem): Boolean =
+        state.entries.withIndex().any { (i, e) ->
+            Seat.sameSide(e.seat, state.seat) && e.call !is Call.Pass &&
+                system.matching(AuctionState(state.dealer, state.calls.take(i)), e.call).any { it.gameForcing }
+        }
 
     /** The same choice as [decide], together with the reason for it. */
-    fun decideWithWhy(state: AuctionState, hand: HandInfo, info: PartnerInfo = partnerInfo(state)): Decision {
+    fun decideWithWhy(
+        state: AuctionState,
+        hand: HandInfo,
+        system: BiddingSystem,
+        info: PartnerInfo = partnerInfo(state, system)
+    ): Decision {
         val auction = state.auction
         val last = auction.lastBid ?: return Decision(Call.Pass, "fb_pass_open")
         val lastBidder = auction.lastBidder ?: return Decision(Call.Pass, "fb_pass_open")
@@ -80,7 +98,7 @@ object Fallback {
         val estimate = hand.hcp + info.expectedHcp
         val est = estimate.toString()
 
-        val gameForced = state.weOpened && state.openingBid == Call.Bid(2, Suit.CLUBS) &&
+        val gameForced = info.gameForcing &&
             state.bids.none { Seat.sameSide(it.seat, state.seat) && isGame(it.call as Call.Bid) }
 
         // the best fit: a suit where we hold at least eight cards together, majors first
@@ -152,35 +170,8 @@ object Fallback {
     }
 }
 
-object Sayc {
-
-    /** The call the system makes with [hand] in [state]. Always legal. */
-    fun choose(state: AuctionState, hand: HandInfo): Call {
-        val call = SaycRules.firstFitting(state, hand)?.call ?: Fallback.decide(state, hand)
-        return if (state.auction.isLegal(call)) call else Call.Pass
-    }
-
-    /** The meanings of the call at [index] in [calls]: the rules that describe it, or a natural-bid meaning. */
-    fun explain(dealer: Int, calls: List<Call>, index: Int): List<Meaning> {
-        val prefix = AuctionState(dealer, calls.take(index))
-        val call = calls[index]
-        val rules = SaycRules.matching(prefix, call)
-        if (rules.isNotEmpty()) return rules.map { it.meaning() }
-        return listOf(
-            Meaning(
-                when (call) {
-                    is Call.Pass -> "gen_pass"
-                    is Call.Bid -> "natural"
-                    else -> "gen_double"
-                },
-                null, emptyList(), null
-            )
-        )
-    }
-}
-
 /**
- * A bot that bids by the SAYC-lite rule table and plays by sampling the hidden hands
+ * A bot that bids by the system of its side in [seating] and plays by sampling the hidden hands
  * ([CardPlayer]). [worlds] is how many sampled deals it weighs per card; 0 or less plays at
  * random (fast, for tests).
  */
@@ -190,7 +181,9 @@ class SaycBot(
     /** Whether the sampled hands must fit what the bidding showed. */
     private val readBidding: Boolean = true,
     /** Added to the point count when bidding: > 0 bids more boldly, < 0 more carefully. */
-    private val hcpShift: Int = 0
+    private val hcpShift: Int = 0,
+    /** The systems of both sides: the bot bids in its own side's and reads the bidding with both. */
+    private val seating: Seating = Seating.SAYC
 ) : Bot {
 
     private var inferenceCalls: List<Call>? = null
@@ -199,7 +192,7 @@ class SaycBot(
     private fun inferenceFor(view: BotView): BidInference {
         val calls = view.auction.calls
         if (inferenceCalls != calls || inference == null) {
-            inference = BidInference(view.auction.dealer, calls)
+            inference = BidInference(view.auction.dealer, calls, seating)
             inferenceCalls = calls
         }
         return inference!!
@@ -207,7 +200,7 @@ class SaycBot(
 
     override fun chooseCall(view: BotView): Call {
         val state = AuctionState(view.auction.dealer, view.auction.calls)
-        val call = Sayc.choose(state, HandInfo(view.actingHand, hcpShift))
+        val call = seating.of(state.seat).choose(state, HandInfo(view.actingHand, hcpShift))
         return if (call in view.legalCalls) call else Call.Pass
     }
 

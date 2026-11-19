@@ -16,8 +16,11 @@ class AppSettings {
         /** 0 = never asked, 1 = results are posted to the leaderboard, 2 = declined */
         var leaderboard: Int = 0
 
-        /** Id of the bidding system the bots and the coach use (only "sayc" exists so far). */
+        /** Id of the bidding system of the player and partner (a preset or a custom system, see SystemCatalog). */
         var biddingSystem: String = "sayc"
+
+        /** Id of the opponents' bidding system. */
+        var opponentSystem: String = "sayc"
 
         /** True once the player has seen the tutorial (it opens by itself before the first game). */
         var tutorialSeen: Boolean = false
@@ -68,6 +71,10 @@ class AppSettings {
         get() = load().biddingSystem
         set(value) = edit { it.biddingSystem = value }
 
+    var opponentSystem: String
+        get() = load().opponentSystem
+        set(value) = edit { it.opponentSystem = value }
+
     var tutorialSeen: Boolean
         get() = load().tutorialSeen
         set(value) = edit { it.tutorialSeen = value }
@@ -79,9 +86,6 @@ class AppSettings {
     companion object {
         private val storageLock = Any()
         private const val FILE_NAME = "settings.json"
-
-        /** Ids of the bidding systems the app knows. Add one here (and a label) when a new rule table exists. */
-        val BIDDING_SYSTEMS = listOf("sayc")
 
         const val ASK = 0
         const val POST = 1

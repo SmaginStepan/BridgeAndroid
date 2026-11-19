@@ -11,7 +11,7 @@ import com.an0obis.bridge.model.Seat
 import com.an0obis.bridge.model.Suit
 import com.an0obis.bridge.model.sayc.AuctionState
 import com.an0obis.bridge.model.sayc.HandInfo
-import com.an0obis.bridge.model.sayc.Sayc
+import com.an0obis.bridge.model.sayc.BiddingSystem
 import com.an0obis.bridge.model.sayc.SaycBot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -42,7 +42,7 @@ class SaycTest {
 
     /** The call made by the player who acts after [calls] (dealer North unless given). */
     private fun call(hand: String, vararg calls: Call, dealer: Int = Seat.NORTH): Call =
-        Sayc.choose(AuctionState(dealer, calls.toList()), hand(hand))
+        BiddingSystem.SAYC.choose(AuctionState(dealer, calls.toList()), hand(hand))
 
     // ----------------------------------------------------------------- openings
 
@@ -180,7 +180,7 @@ class SaycTest {
             }
             val auction = game.auction
             for (i in auction.calls.indices) {
-                val meanings = Sayc.explain(auction.dealer, auction.calls, i)
+                val meanings = BiddingSystem.SAYC.explain(auction.dealer, auction.calls, i)
                 assertTrue(meanings.isNotEmpty())
                 withExplain++
             }

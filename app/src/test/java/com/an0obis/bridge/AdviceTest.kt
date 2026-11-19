@@ -19,7 +19,7 @@ import com.an0obis.bridge.model.advice.BidAdvisor
 import com.an0obis.bridge.model.advice.PlayAdvisor
 import com.an0obis.bridge.model.sayc.AuctionState
 import com.an0obis.bridge.model.sayc.HandInfo
-import com.an0obis.bridge.model.sayc.Sayc
+import com.an0obis.bridge.model.sayc.BiddingSystem
 import com.an0obis.bridge.model.sayc.SaycBot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -100,7 +100,7 @@ class AdviceTest {
             while (game.phase == Phase.AUCTION) {
                 val view = game.view()
                 val advice = BidAdvisor.advise(view.auction.dealer, view.auction.calls, view.actingHand)
-                val system = Sayc.choose(AuctionState(view.auction.dealer, view.auction.calls), HandInfo(view.actingHand))
+                val system = BiddingSystem.SAYC.choose(AuctionState(view.auction.dealer, view.auction.calls), HandInfo(view.actingHand))
                 assertEquals("board $board, calls ${view.auction.calls}", system, advice.call)
                 assertTrue(advice.call in view.legalCalls)
                 assertTrue(advice.reasons.isNotEmpty())
