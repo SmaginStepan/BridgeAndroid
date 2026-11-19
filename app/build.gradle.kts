@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -16,11 +18,18 @@ android {
         versionCode = 4
         versionName = "0.3.1"
 
-        // ScoreServer credentials for this game live in ~/.gradle/gradle.properties (never in git):
+        // ScoreServer credentials live in the root's gitignored score-secrets.properties,
+        // or in ~/.gradle/gradle.properties / -P properties for CI (never in git):
         //   scoreApiKey=...   scoreSecret=...
         // Without them the build works, but score/season calls are rejected by the server.
-        val scoreApiKey = providers.gradleProperty("scoreApiKey").orNull ?: ""
-        val scoreSecret = providers.gradleProperty("scoreSecret").orNull ?: ""
+        val scoreSecrets = Properties().apply {
+            rootProject.file("score-secrets.properties").takeIf { it.isFile }
+                ?.inputStream()?.use { load(it) }
+        }
+        val scoreApiKey = providers.gradleProperty("scoreApiKey").orNull
+            ?: scoreSecrets.getProperty("scoreApiKey", "")
+        val scoreSecret = providers.gradleProperty("scoreSecret").orNull
+            ?: scoreSecrets.getProperty("scoreSecret", "")
         buildConfigField("String", "SCORE_API_KEY", "\"$scoreApiKey\"")
         buildConfigField("String", "SCORE_SECRET", "\"$scoreSecret\"")
     }

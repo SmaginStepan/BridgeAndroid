@@ -128,8 +128,7 @@ fun TopPlayersScreen(onBack: () -> Unit) {
                 checked = joined,
                 onCheckedChange = { on ->
                     joined = on
-                    settings.leaderboardChoice = if (on) AppSettings.POST else AppSettings.DECLINED
-                    if (!on) GlobalScores.clearPending()
+                    GlobalScores.setLeaderboardChoice(if (on) AppSettings.POST else AppSettings.DECLINED)
                 }
             )
         }

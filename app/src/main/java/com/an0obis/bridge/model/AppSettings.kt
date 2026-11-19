@@ -3,8 +3,8 @@ package com.an0obis.bridge.model
 import kotlinx.serialization.Serializable
 
 /**
- * A small JSON file in app storage. Every read and write goes to the file, so several
- * instances (the table screen, the leaderboard screen) never overwrite each other's changes.
+ * A small JSON file in app storage. A shared lock protects each read and each read-modify-write,
+ * so the table, the leaderboard and background sync preserve each other's changes.
  */
 class AppSettings {
 
@@ -26,8 +26,8 @@ class AppSettings {
         var boardTourSeen: Int = 0
     }
 
-    private fun load(): Data {
-        return try {
+    private fun load(): Data = synchronized(storageLock) {
+        try {
             val text = BridgeStorage.readText(FILE_NAME) ?: return Data()
             BridgeStorage.json.decodeFromString(Data.serializer(), text)
         } catch (e: Exception) {
@@ -35,7 +35,7 @@ class AppSettings {
         }
     }
 
-    private fun edit(change: (Data) -> Unit) {
+    private fun edit(change: (Data) -> Unit) = synchronized(storageLock) {
         val d = load()
         change(d)
         BridgeStorage.writeText(FILE_NAME, BridgeStorage.json.encodeToString(Data.serializer(), d))
@@ -47,19 +47,19 @@ class AppSettings {
 
     /** Stable device identity for online play; doubles as the reconnect token. */
     val playerId: String
-        get() {
+        get() = synchronized(storageLock) {
             val current = load().playerId
-            if (current.isNotEmpty()) return current
+            if (current.isNotEmpty()) return@synchronized current
             val fresh = java.util.UUID.randomUUID().toString()
             edit { if (it.playerId.isEmpty()) it.playerId = fresh }
-            return load().playerId
+            load().playerId
         }
 
     /** True while the user never typed their own name. */
     val isDefaultPlayerName: Boolean
         get() = isDefaultName(load().playerName)
 
-    /** Whether the player takes part in the global leaderboard. */
+    /** Whether the player takes part. Update through [GlobalScores.setLeaderboardChoice] to cancel pending work. */
     var leaderboardChoice: Int
         get() = load().leaderboard
         set(value) = edit { it.leaderboard = value }
@@ -77,6 +77,7 @@ class AppSettings {
         set(value) = edit { it.boardTourSeen = value }
 
     companion object {
+        private val storageLock = Any()
         private const val FILE_NAME = "settings.json"
 
         /** Ids of the bidding systems the app knows. Add one here (and a label) when a new rule table exists. */

@@ -299,14 +299,14 @@ class SoloViewModel : ViewModel() {
     fun joinLeaderboard(name: String) {
         val settings = AppSettings()
         settings.playerName = name.trim()
-        settings.leaderboardChoice = AppSettings.POST
+        GlobalScores.setLeaderboardChoice(AppSettings.POST)
         leaderboardChoice = AppSettings.POST
         postSessionIfDue()
         publish()
     }
 
     fun declineLeaderboard() {
-        AppSettings().leaderboardChoice = AppSettings.DECLINED
+        GlobalScores.setLeaderboardChoice(AppSettings.DECLINED)
         leaderboardChoice = AppSettings.DECLINED
         publish()
     }

@@ -48,6 +48,12 @@ object ScoreClient {
     /** What to do with a queued submission after one attempt. */
     enum class SubmitOutcome { ACCEPTED, DROP, RETRY }
 
+    /** A request that can be cancelled before or during its blocking execution. */
+    internal interface Submission {
+        fun execute(): SubmitOutcome
+        fun cancel()
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
 
     private val http = OkHttpClient.Builder()
@@ -117,36 +123,58 @@ object ScoreClient {
         score10: Long,
         deviceTs: Long,
         board: String = BOARD
-    ): SubmitOutcome = try {
-        val path = "/v1/$GAME/boards/$board/scores"
-        val body = json.encodeToString(
-            SubmitBody.serializer(),
-            SubmitBody(playerId, name, score10, deviceTs)
-        ).toByteArray(Charsets.UTF_8)
-        val ts = (System.currentTimeMillis() / 1000).toString()
-        val req = Request.Builder()
-            .url("$BASE$path")
-            .header("X-Api-Key", API_KEY)
-            .header("X-Ts", ts)
-            .header("X-Sig", sign(SECRET, signaturePayload(ts, "POST", path, body)))
-            .post(body.toRequestBody("application/json".toMediaType()))
-            .build()
-        http.newCall(req).execute().use { resp ->
-            when {
-                !resp.isSuccessful -> SubmitOutcome.RETRY // 5xx, 401 clock drift…
-                else -> {
-                    val r = json.decodeFromString(SubmitResponse.serializer(), resp.body!!.string())
-                    when {
-                        r.accepted -> SubmitOutcome.ACCEPTED
-                        r.reason == "submitting too fast" -> SubmitOutcome.RETRY
-                        else -> SubmitOutcome.DROP // out of range / above maximum
-                    }
-                }
+    ): SubmitOutcome = prepareSubmission(playerId, name, score10, deviceTs, board).execute()
+
+    /** Builds the request without sending it, so an opt-out can cancel even before execute starts. */
+    internal fun prepareSubmission(
+        playerId: String,
+        name: String,
+        score10: Long,
+        deviceTs: Long,
+        board: String = BOARD
+    ): Submission {
+        val call = try {
+            val path = "/v1/$GAME/boards/$board/scores"
+            val body = json.encodeToString(
+                SubmitBody.serializer(),
+                SubmitBody(playerId, name, score10, deviceTs)
+            ).toByteArray(Charsets.UTF_8)
+            val ts = (System.currentTimeMillis() / 1000).toString()
+            val req = Request.Builder()
+                .url("$BASE$path")
+                .header("X-Api-Key", API_KEY)
+                .header("X-Ts", ts)
+                .header("X-Sig", sign(SECRET, signaturePayload(ts, "POST", path, body)))
+                .post(body.toRequestBody("application/json".toMediaType()))
+                .build()
+            http.newCall(req)
+        } catch (e: Exception) {
+            android.util.Log.w("BridgeNet", "score submit failed: ${e.message}")
+            return object : Submission {
+                override fun execute() = SubmitOutcome.RETRY
+                override fun cancel() = Unit
             }
         }
-    } catch (e: Exception) {
-        android.util.Log.w("BridgeNet", "score submit failed: ${e.message}")
-        SubmitOutcome.RETRY
+        return object : Submission {
+            override fun cancel() = call.cancel()
+
+            override fun execute(): SubmitOutcome = try {
+                call.execute().use { resp ->
+                    if (!resp.isSuccessful) SubmitOutcome.RETRY // 5xx, 401 clock drift…
+                    else {
+                        val r = json.decodeFromString(SubmitResponse.serializer(), resp.body!!.string())
+                        when {
+                            r.accepted -> SubmitOutcome.ACCEPTED
+                            r.reason == "submitting too fast" -> SubmitOutcome.RETRY
+                            else -> SubmitOutcome.DROP // out of range / above maximum
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                if (!call.isCanceled()) android.util.Log.w("BridgeNet", "score submit failed: ${e.message}")
+                SubmitOutcome.RETRY
+            }
+        }
     }
 
     // sig = HMAC-SHA256(secret, "{ts}\n{METHOD}\n{path}\n{sha256hex(body)}"), lowercase hex
