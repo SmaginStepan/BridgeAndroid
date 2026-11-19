@@ -1,0 +1,5 @@
+Tool: built-in image_gen.imagegen
+Edit target: store/feature-graphic-white-v2-source.png
+Export: opaque 1024 x 500 PNG; high-quality bicubic resize from the generated master.
+
+Use case: text-localization. Edit target: the attached Bridge Master feature graphic. Make exactly one change: replace the tagline 'Duplicate bridge against smart bots' with the exact text 'Contract bridge against smart bots'. Keep the tagline in the same position, on one line, in the same cream serif font, size, weight and spacing. Preserve everything else: the gold two-line title 'Bridge Master', dark green felt background, hand, white playing cards, bidding box, composition, textures, lighting, shadows, margins and wide 1024:500 aspect ratio. Do not redesign, move or add anything. The final tagline must read exactly 'Contract bridge against smart bots'. Opaque PNG.
