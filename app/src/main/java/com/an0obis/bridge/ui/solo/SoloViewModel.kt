@@ -26,6 +26,10 @@ import com.an0obis.bridge.model.sayc.Meaning
 import com.an0obis.bridge.model.sayc.SaycBot
 import com.an0obis.bridge.model.sayc.SystemCatalog
 import com.an0obis.bridge.model.session.Baseline
+import com.an0obis.bridge.model.session.SeasonBoard
+import com.an0obis.bridge.model.session.SeasonState
+import com.an0obis.bridge.model.session.Seasons
+import androidx.lifecycle.ViewModelProvider
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -85,7 +89,11 @@ data class TableState(
     /** While the finished trick is swept away: the seat of the side that won it. */
     val collectTo: Int? = null,
     /** The session is over and the player has not yet said whether to join the leaderboard. */
-    val leaderboardAsk: Boolean = false
+    val leaderboardAsk: Boolean = false,
+    /** In a season game: the number of the season session being played (null in solo play). */
+    val seasonSession: Int? = null,
+    /** The season ended: no new board can start. */
+    val seasonOver: Boolean = false
 ) {
     val average: Double? get() = if (records.isEmpty()) null else records.sumOf { it.percent } / records.size
     val isLastBoard: Boolean get() = boardNumber >= sessionSize
@@ -100,15 +108,27 @@ sealed interface AdviceUi {
     class Ready(val advice: Advice) : AdviceUi
 }
 
+/** Solo play (a fresh random session each time) or the season run (the shared deal sequence). */
+sealed interface PlayMode {
+    object Solo : PlayMode
+    class Season(val state: SeasonState) : PlayMode
+}
+
 /**
  * Solo play: the human sits South, the partner and both opponents are bots. A session is 16 boards
  * dealt from one random seed (the same mechanism a season will use with the server's seed); every
  * board is ranked in matchpoints against a field of bot tables playing the same deal.
  */
-class SoloViewModel : ViewModel() {
+class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
 
     companion object {
         const val SESSION_SIZE = 16
+
+        /** Builds the view model of a season game on [state]. */
+        fun seasonFactory(state: SeasonState) = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T = SoloViewModel(PlayMode.Season(state)) as T
+        }
 
         /** How long the human can still undo before the bots answer. */
         private const val UNDO_WINDOW_MS = 900L
@@ -125,17 +145,39 @@ class SoloViewModel : ViewModel() {
 
     private val human = Seat.SOUTH
 
-    /** The bidding systems of this session: the player's side and the opponents (read from the settings). */
-    private var seating = SystemCatalog.seating()
+    /**
+     * The season run being played, or null in solo play. A season game uses the season's seed and
+     * deal numbers, the player's system against the season's opponents, and no advice or undo; every
+     * move is saved, so a board continues where it was left and can never be started again.
+     */
+    private val season: SeasonState? = (mode as? PlayMode.Season)?.state
 
-    private var seed = newSeed()
-    private var boardNumber = 1
+    /** The bidding systems: the player's side and the opponents (from the settings, or the season's). */
+    private var seating = season?.let { Seasons.seating(it) } ?: SystemCatalog.seating()
+
+    private var seed = season?.seed ?: newSeed()
+
+    /** The board within the 16-board session (1..16). */
+    private var boardNumber = season?.let { it.boardsPlayed % SESSION_SIZE + 1 } ?: 1
+
+    /** The deal number of the session's first board (1 in solo play; in a season it runs on). */
+    private var sessionStart = season?.let { it.boardsPlayed - it.boardsPlayed % SESSION_SIZE + 1 } ?: 1
+
+    private var seasonOver = false
+
+    /** The deal number of the session's board [n]: the index into the deal sequence. */
+    private fun dealIndex(n: Int = boardNumber) = sessionStart + n - 1
+
     private var dealHands: List<Hand> = dealFor(boardNumber)
-    private var game = BoardGame(boardNumber, dealHands)
+    private var game = BoardGame(dealIndex(), dealHands)
     private var bots: List<Bot> = newBots(boardNumber)
     private var fieldTables: Deferred<List<Int>> = startField()
 
-    private val records = mutableListOf<BoardRecord>()
+    private val records = mutableListOf<BoardRecord>().apply {
+        // a season continues the session in progress
+        val run = season
+        if (run != null && run.boardsPlayed % SESSION_SIZE != 0) addAll(run.session.map { it.toRecord() })
+    }
     private var percent: Double? = null
     private var ending = Ending.PLAYED
     private var showSummary = false
@@ -170,20 +212,41 @@ class SoloViewModel : ViewModel() {
     private var adviceToken = 0
 
     init {
-        run()
+        val run = season
+        if (run != null) {
+            // continue a board that was left unfinished
+            val moves = Seasons.movesOf(run, dealIndex())
+            Seasons.replay(game, moves, human)
+            for (m in moves) actions.add(Act(Seasons.decode(m), Kind.AUTO))
+            if (Seasons.CONCEDE in moves) ending = Ending.CONCEDED
+            seasonOver = Seasons.isOver(run) && moves.isEmpty()
+        }
+        if (!seasonOver) run()
+    }
+
+    private fun SeasonBoard.toRecord(): BoardRecord {
+        val contract = if (level == 0) null
+        else com.an0obis.bridge.model.Contract(level, denom, com.an0obis.bridge.model.Multiplier.entries[multiplier], declarer)
+        return BoardRecord((deal - 1) % SESSION_SIZE + 1, contract, declarerTricks, northSouthScore, percent)
+    }
+
+    /** Saves the moves of the board in progress (season games only). */
+    private fun saveMoves() {
+        val run = season ?: return
+        Seasons.saveMoves(run, dealIndex(), actions.map { Seasons.encode(it.item) })
     }
 
     private fun newSeed() = java.util.UUID.randomUUID().toString().replace("-", "")
 
-    private fun dealFor(n: Int) = Deck.deal(SeasonRandom.forPurpose(seed, "deal", n))
+    private fun dealFor(n: Int) = Deck.deal(SeasonRandom.forPurpose(seed, "deal", dealIndex(n)))
 
     private fun newBots(n: Int): List<Bot> =
-        List(4) { seat -> SaycBot(SeasonRandom.forPurpose(seed, "bots", n * 4 + seat), seating = seating) }
+        List(4) { seat -> SaycBot(SeasonRandom.forPurpose(seed, "bots", dealIndex(n) * 4 + seat), seating = seating) }
 
     /** The bot tables for this board are played in the background while the human plays. */
     private fun startField(): Deferred<List<Int>> {
         val s = seed
-        val n = boardNumber
+        val n = dealIndex()
         val hands = dealHands
         val systems = seating
         return viewModelScope.async(Dispatchers.Default) { Baseline.field(s, n, hands, systems) }
@@ -196,6 +259,7 @@ class SoloViewModel : ViewModel() {
      * screen; the answer is dropped if the position changes before it is ready.
      */
     fun requestAdvice() {
+        if (season != null) return // no advice in a season game
         if (busy || game.phase == Phase.DONE || game.controller != human) return
         val token = ++adviceToken
         val view = game.view()
@@ -248,11 +312,15 @@ class SoloViewModel : ViewModel() {
         closeAdvice()
         game.giveRest(1 - (human and 1))
         ending = Ending.CONCEDED
+        if (season != null) {
+            actions.add(Act(Seasons.CONCEDE, Kind.HUMAN))
+            saveMoves()
+        }
         run()
     }
 
     private fun canUndoNow(): Boolean {
-        if (game.phase == Phase.DONE) return false
+        if (season != null || game.phase == Phase.DONE) return false
         val last = actions.indexOfLast { it.kind == Kind.HUMAN }
         return last >= 0 && actions.drop(last + 1).all { it.kind == Kind.AUTO }
     }
@@ -265,7 +333,7 @@ class SoloViewModel : ViewModel() {
             job?.cancelAndJoin()
             if (!canUndoNow()) { run(); return@launch }
             val keep = actions.take(actions.indexOfLast { it.kind == Kind.HUMAN })
-            game = BoardGame(boardNumber, dealHands)
+            game = BoardGame(dealIndex(), dealHands)
             actions.clear()
             lingering = null
             collectTo = null
@@ -283,6 +351,11 @@ class SoloViewModel : ViewModel() {
     fun nextBoard() {
         if (busy || game.phase != Phase.DONE) return
         closeAdvice()
+        if (season?.let { Seasons.isOver(it) } == true) {
+            seasonOver = true
+            publish()
+            return
+        }
         if (boardNumber >= SESSION_SIZE) {
             showSummary = true
             publish()
@@ -296,8 +369,20 @@ class SoloViewModel : ViewModel() {
         closeAdvice()
         job?.cancel()
         fieldTables.cancel()
-        seed = newSeed()
-        seating = SystemCatalog.seating() // a new session picks up a system changed in the settings
+        val run = season
+        if (run != null) {
+            // the next season session continues the deal sequence after the last finished board
+            if (Seasons.isOver(run)) {
+                seasonOver = true
+                publish()
+                return
+            }
+            sessionStart = run.boardsPlayed + 1
+        } else {
+            seed = newSeed()
+            seating = SystemCatalog.seating() // a new session picks up a system changed in the settings
+            sessionStart = 1
+        }
         boardNumber = 1
         records.clear()
         showSummary = false
@@ -329,6 +414,7 @@ class SoloViewModel : ViewModel() {
 
     /** Queues the finished session's average for the leaderboard, once, if the player agreed. */
     private fun postSessionIfDue() {
+        if (season != null) return // a season has its own board
         if (posted || records.size < SESSION_SIZE || leaderboardChoice != AppSettings.POST) return
         val average = records.sumOf { it.percent } / records.size
         posted = true
@@ -338,7 +424,7 @@ class SoloViewModel : ViewModel() {
 
     private fun startBoard() {
         dealHands = dealFor(boardNumber)
-        game = BoardGame(boardNumber, dealHands)
+        game = BoardGame(dealIndex(), dealHands)
         bots = newBots(boardNumber)
         fieldTables = startField()
         percent = null
@@ -354,6 +440,7 @@ class SoloViewModel : ViewModel() {
     private fun doCall(call: Call, kind: Kind) {
         game.call(call)
         actions.add(Act(call, kind))
+        saveMoves()
         publish()
     }
 
@@ -361,6 +448,7 @@ class SoloViewModel : ViewModel() {
         val before = game.play!!.tricks.size
         game.playCard(card)
         actions.add(Act(card, kind))
+        saveMoves()
         val play = game.play!!
         if (play.tricks.size > before) {
             val trick = play.tricks.last()
@@ -395,7 +483,7 @@ class SoloViewModel : ViewModel() {
             try {
                 first?.invoke()
                 // after a human move there is a short pause in which it can be taken back
-                var undoWindow = first != null
+                var undoWindow = first != null && season == null
                 while (game.phase != Phase.DONE) {
                     if (game.phase == Phase.PLAY && claimIfSure()) break
                     if (game.controller == human) {
@@ -432,12 +520,24 @@ class SoloViewModel : ViewModel() {
     private fun settleBoard() {
         val result = game.result ?: return
         val n = boardNumber
+        val deal = dealIndex()
         val s = seed
         val tables = fieldTables
         viewModelScope.launch {
             val pct = Scoring.matchpointPercent(result.northSouthScore, tables.await())
-            if (s != seed || records.any { it.board == n }) return@launch
+            if (s != seed || deal != dealIndex(n) || records.any { it.board == n }) return@launch
             records.add(BoardRecord(n, result.contract, result.declarerTricks, result.northSouthScore, pct))
+            season?.let { run ->
+                val c = result.contract
+                Seasons.boardFinished(
+                    run,
+                    SeasonBoard(
+                        deal, c?.level ?: 0, c?.denom ?: 0, c?.multiplier?.ordinal ?: 0, c?.declarer ?: 0,
+                        result.declarerTricks, result.northSouthScore, pct
+                    )
+                )
+                launch(Dispatchers.IO) { Seasons.submitPending(run) }
+            }
             Engagement.dealFinished() // counts towards the ad-free first boards and the rate reminder
             if (n == boardNumber) percent = pct
             postSessionIfDue()
@@ -499,7 +599,9 @@ class SoloViewModel : ViewModel() {
             canConcede = acting && g.phase == Phase.PLAY,
             trickDone = lingering != null,
             collectTo = collectTo,
-            leaderboardAsk = showSummary && leaderboardChoice == AppSettings.ASK
+            leaderboardAsk = showSummary && season == null && leaderboardChoice == AppSettings.ASK,
+            seasonSession = season?.let { (sessionStart - 1) / SESSION_SIZE + 1 },
+            seasonOver = seasonOver
         )
     }
 }

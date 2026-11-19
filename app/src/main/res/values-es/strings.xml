@@ -288,20 +288,16 @@
     <string name="menu_season_sub">una carrera mensual con los mismos repartos</string>
     <string name="season_days_left_fmt">Quedan %1$d días</string>
     <string name="season_last_day">Último día</string>
-    <string name="season_over">La temporada ha terminado. Vuelve más tarde para la siguiente.</string>
-    <string name="season_rules_title">Reglas de la temporada</string>
-    <string name="season_consolation">Consolación</string>
-    <string name="season_yes">sí</string>
-    <string name="season_no">no</string>
-    <string name="season_progress_fmt">Pulkas cerradas: %1$d · Repartos jugados: %2$d</string>
-    <string name="season_total_fmt">Total de la temporada (vistas): %1$s</string>
-    <string name="season_note">Todos juegan los mismos repartos en el mismo orden, una sola vez y sin reiniciar. Tu puntuación es la suma de tus pulkas cerradas. El consejo está desactivado.</string>
+    <string name="season_over">Esta temporada ha terminado y tu total es definitivo. Vuelve a la pantalla de temporada más adelante para la siguiente.</string>
+    <string name="season_progress_fmt">Manos jugadas: %1$d · Sesión %2$d</string>
+    <string name="season_total_fmt">Puntos sobre la media: %1$s</string>
+    <string name="season_note">Todos juegan las mismas manos en el mismo orden, cada una una sola vez, sin reinicios. Cada mano puntúa tu porcentaje de matchpoints menos 50: una buena mano suma, una mala resta. Tú y tu compañero jugáis vuestro propio sistema; los rivales juegan el sistema de esta temporada. No hay consejos ni deshacer, pero al tocar una voz se sigue explicando.</string>
     <string name="season_play">Jugar</string>
     <string name="season_need_network">Conéctate a internet una vez para obtener la temporada de este mes. Después puedes jugar sin conexión.</string>
     <string name="season_loading">Cargando…</string>
     <string name="season_retry">Reintentar</string>
     <string name="season_board_title">Mejores jugadores</string>
-    <string name="season_board_empty">Aún no hay resultados. Cierra una pulka para ser el primero.</string>
+    <string name="season_board_empty">Aún no hay resultados. Termina una mano para ser el primero.</string>
 
     <!-- Ads, purchase and rating -->
     <string name="menu_rate">Valóranos</string>
@@ -710,4 +706,12 @@
     <string name="guide_twooverone_b">En 2/1 un palo nuevo al nivel de dos sobre la apertura del compañero (por ejemplo 1♠ – 2♣) muestra fuerza de apertura y es forzante a manga. Así la pareja tiene todo el espacio que necesita para buscar la mejor manga o un slam.\n\n• Las manos que no llegan a una respuesta 2/1 dicen 1NT sobre 1♥ o 1♠. Este 1NT es forzante: el abridor debe volver a licitar y, sin nada mejor, dice su menor más largo, que puede tener solo tres cartas.\n• Jacoby 2NT sobre 1♥/1♠ muestra apoyo de cuatro cartas y valores de manga; el abridor describe entonces su mano.</string>
     <string name="guide_fourcard_t">Acol: mayores de cuatro y el 1NT débil</string>
     <string name="guide_fourcard_b">Acol se diferencia de Standard American en dos puntos principales:\n\n• Un mayor se puede abrir con cuatro cartas. Con dos mayores de cuatro abre 1♥. Como el abridor puede tener solo cuatro cartas, el compañero apoya con cuatro cartas de apoyo.\n• 1NT es débil, 12–14. Una mano equilibrada con 15 o más abre de uno en un palo y redeclara 1NT (15–16) o 2NT (17–19).\n\nLas respuestas en sin triunfo a uno en un palo son de límite: 1NT es débil, 2NT invita a manga y 3NT es para jugar.</string>
+    <!-- Bridge season -->
+    <string name="season_session_fmt">Sesión %1$d</string>
+    <string name="season_next_session">Siguiente sesión</string>
+    <string name="season_ended">terminada</string>
+    <string name="season_system_ours">Tu sistema: %1$s</string>
+    <string name="season_system_theirs">Rivales de esta temporada: %1$s</string>
+    <string name="season_not_shown">Tus resultados no aparecen en la tabla de la temporada.</string>
+    <string name="season_join">Mostrar mis resultados en la tabla</string>
 </resources>

@@ -288,20 +288,16 @@
     <string name="menu_season_sub">a monthly race on shared deals</string>
     <string name="season_days_left_fmt">%1$d days left</string>
     <string name="season_last_day">Last day</string>
-    <string name="season_over">This season has ended. Open this screen later for the next one.</string>
-    <string name="season_rules_title">This season\'s rules</string>
-    <string name="season_consolation">Consolation</string>
-    <string name="season_yes">yes</string>
-    <string name="season_no">no</string>
-    <string name="season_progress_fmt">Closed pools: %1$d · Deals played: %2$d</string>
-    <string name="season_total_fmt">Season total (whists): %1$s</string>
-    <string name="season_note">Everyone plays the same deals in the same order, once, with no restarts. Your score is the sum of your closed pools. Advice is off.</string>
+    <string name="season_over">This season has ended and your total is final. Open the Season screen later for the next one.</string>
+    <string name="season_progress_fmt">Boards played: %1$d · Session %2$d</string>
+    <string name="season_total_fmt">Points over average: %1$s</string>
+    <string name="season_note">Everyone plays the same boards in the same order, each once, with no restarts. A board scores your matchpoint percentage minus 50: a good board adds, a bad one subtracts. You and your partner play your own system; the opponents play this season’s system. There is no advice and no undo, but tapping a call still explains it.</string>
     <string name="season_play">Play</string>
     <string name="season_need_network">Connect to the internet once to get this month\'s season. After that you can play offline.</string>
     <string name="season_loading">Loading…</string>
     <string name="season_retry">Retry</string>
     <string name="season_board_title">Top players</string>
-    <string name="season_board_empty">No results yet. Close a pool to be first.</string>
+    <string name="season_board_empty">No results yet. Finish a board to be first.</string>
 
     <!-- Ads, purchase and rating -->
     <string name="menu_rate">Rate us</string>
@@ -710,4 +706,12 @@
     <string name="guide_twooverone_b">In 2/1 a new suit at the two level over partner’s opening (for example 1♠ – 2♣) shows opening strength and forces to game. The partnership then has all the room it needs to look for the best game or a slam.\n\n• Hands that are not strong enough for a 2/1 answer bid 1NT over 1♥ or 1♠. This 1NT is forcing: the opener must bid again, and with nothing better bids the longer minor, which may have only three cards.\n• Jacoby 2NT over 1♥/1♠ shows four-card support and game values; the opener then describes the hand.</string>
     <string name="guide_fourcard_t">Acol: four-card majors and the weak 1NT</string>
     <string name="guide_fourcard_b">Acol differs from Standard American in two main ways:\n\n• A major can be opened with four cards. With two four-card majors open 1♥. Because the opener may have only four cards, the partner raises with four-card support.\n• 1NT is weak, 12–14. A balanced hand with 15 or more opens one of a suit and rebids 1NT (15–16) or 2NT (17–19).\n\nThe answers in notrump to one of a suit are limit bids: 1NT is weak, 2NT invites game and 3NT is to play.</string>
+    <!-- Bridge season -->
+    <string name="season_session_fmt">Session %1$d</string>
+    <string name="season_next_session">Next session</string>
+    <string name="season_ended">ended</string>
+    <string name="season_system_ours">Your system: %1$s</string>
+    <string name="season_system_theirs">Opponents this season: %1$s</string>
+    <string name="season_not_shown">Your results are not shown on the season board.</string>
+    <string name="season_join">Show my results on the board</string>
 </resources>

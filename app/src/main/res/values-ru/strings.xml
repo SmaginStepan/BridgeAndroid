@@ -288,20 +288,16 @@
     <string name="menu_season_sub">месячная гонка на одинаковых раздачах</string>
     <string name="season_days_left_fmt">Осталось дней: %1$d</string>
     <string name="season_last_day">Последний день</string>
-    <string name="season_over">Сезон закончился. Загляните сюда позже — начнётся новый.</string>
-    <string name="season_rules_title">Правила сезона</string>
-    <string name="season_consolation">Утешение</string>
-    <string name="season_yes">да</string>
-    <string name="season_no">нет</string>
-    <string name="season_progress_fmt">Закрытых пуль: %1$d · Сыграно раздач: %2$d</string>
-    <string name="season_total_fmt">Итог сезона (висты): %1$s</string>
-    <string name="season_note">Все играют одни и те же раздачи в одном порядке — по одному разу, без перезапусков. Ваш результат — сумма закрытых пуль. Подсказки отключены.</string>
+    <string name="season_over">Этот сезон завершён, ваш итог окончательный. Загляните на экран сезона позже, чтобы сыграть в следующем.</string>
+    <string name="season_progress_fmt">Сыграно раздач: %1$d · Сессия %2$d</string>
+    <string name="season_total_fmt">Очки сверх среднего: %1$s</string>
+    <string name="season_note">Все играют одни и те же раздачи в одном порядке, каждую один раз, без перезапусков. Раздача приносит ваш процент матчпоинтов минус 50: хорошая раздача прибавляет, плохая отнимает. Вы с партнёром играете по своей системе, соперники — по системе этого сезона. Советов и отмены хода нет, но нажатие на заявку по-прежнему объясняет её.</string>
     <string name="season_play">Играть</string>
     <string name="season_need_network">Один раз подключитесь к интернету, чтобы получить сезон этого месяца. Дальше можно играть без сети.</string>
     <string name="season_loading">Загрузка…</string>
     <string name="season_retry">Повторить</string>
     <string name="season_board_title">Лучшие игроки</string>
-    <string name="season_board_empty">Пока нет результатов. Закройте пулю, чтобы стать первым.</string>
+    <string name="season_board_empty">Результатов пока нет. Доиграйте раздачу, чтобы стать первым.</string>
 
     <!-- Ads, purchase and rating -->
     <string name="menu_rate">Оценить игру</string>
@@ -710,4 +706,12 @@
     <string name="guide_twooverone_b">В системе 2/1 новая масть на втором уровне в ответ на открытие партнёра (например, 1♠ – 2♣) показывает силу открытия и форсирует до гейма. Тогда у пары есть всё место, чтобы искать лучший гейм или шлем.\n\n• Руки, которым не хватает на ответ 2/1, отвечают 1БК на 1♥ или 1♠. Эти 1БК форсируют: открывающий обязан заявить ещё раз и, если сказать нечего, называет более длинный минор, в нём может быть всего три карты.\n• Джекоби 2БК на 1♥/1♠ показывает четыре карты поддержки и силу на гейм; затем открывающий описывает руку.</string>
     <string name="guide_fourcard_t">Акол: четырёхкарточные мажоры и слабые 1БК</string>
     <string name="guide_fourcard_b">Акол отличается от Standard American двумя главными вещами:\n\n• Мажор можно открыть с четырьмя картами. С двумя четырёхкарточными мажорами открывают 1♥. Раз у открывшего может быть всего четыре карты, партнёр поддерживает с четырьмя картами.\n• 1БК слабые, 12–14. Ровная рука с 15 и более открывается одной в масть и повторяет 1БК (15–16) или 2БК (17–19).\n\nОтветы в бескозырку на открытие в масть лимитные: 1БК слабые, 2БК приглашают в гейм, 3БК — для игры.</string>
+    <!-- Bridge season -->
+    <string name="season_session_fmt">Сессия %1$d</string>
+    <string name="season_next_session">Следующая сессия</string>
+    <string name="season_ended">завершён</string>
+    <string name="season_system_ours">Ваша система: %1$s</string>
+    <string name="season_system_theirs">Соперники в этом сезоне: %1$s</string>
+    <string name="season_not_shown">Ваши результаты не показываются в таблице сезона.</string>
+    <string name="season_join">Показывать мои результаты в таблице</string>
 </resources>

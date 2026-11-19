@@ -22,6 +22,12 @@ import com.an0obis.bridge.ui.PlaceholderScreen
 import com.an0obis.bridge.model.AppSettings
 import com.an0obis.bridge.ui.misc.AboutScreen
 import com.an0obis.bridge.ui.misc.SettingsScreen
+import com.an0obis.bridge.ui.season.SeasonScreen
+import com.an0obis.bridge.ui.solo.SoloViewModel
+import com.an0obis.bridge.model.session.Seasons
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.an0obis.bridge.ui.system.SystemBuilderScreen
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
@@ -34,6 +40,8 @@ object Routes {
     const val MENU = "menu"
     const val SOLO = "solo"
     const val SEASON = "season"
+    /** The table of a season game (the run saved on the device continues). */
+    const val SEASON_PLAY = "season_play"
     const val ONLINE = "online"
     const val TOP = "top"
     const val ABOUT = "about"
@@ -109,7 +117,25 @@ class MainActivity : AppCompatActivity() {
                 )
             }
             composable(Routes.SOLO) { SoloScreen(onBack = { navController.popBackStack() }) }
-            composable(Routes.SEASON) { PlaceholderScreen(getString(R.string.coming_soon)) }
+            composable(Routes.SEASON) {
+                SeasonScreen(
+                    onPlay = { navController.navigate(Routes.SEASON_PLAY) },
+                    onToMenu = { navController.popBackStack() }
+                )
+            }
+            composable(Routes.SEASON_PLAY) {
+                val run = remember { Seasons.load() }
+                if (run == null) {
+                    LaunchedEffect(Unit) { navController.popBackStack() }
+                } else {
+                    // no advice and no undo in a season game: everyone plays the same boards on equal terms
+                    SoloScreen(
+                        onBack = { navController.popBackStack() },
+                        adviceAllowed = false,
+                        vm = viewModel(factory = SoloViewModel.seasonFactory(run))
+                    )
+                }
+            }
             composable(Routes.TOP) { TopPlayersScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.TUTORIAL) {
                 TutorialScreen(onDone = {

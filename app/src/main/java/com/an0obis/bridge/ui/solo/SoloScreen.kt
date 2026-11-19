@@ -318,6 +318,15 @@ fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: SoloViewMo
         )
     }
 
+    if (s.seasonOver) {
+        AlertDialog(
+            onDismissRequest = onBack,
+            title = { Text(stringResource(R.string.menu_season)) },
+            text = { Text(stringResource(R.string.season_over)) },
+            confirmButton = { TextButton(onClick = onBack) { Text(stringResource(R.string.solo_menu)) } }
+        )
+    }
+
     if (s.showSummary) {
         SessionDialog(s, onNew = vm::newSession, onClose = vm::dismissSummary, onMenu = onBack)
     }
@@ -393,7 +402,7 @@ private fun percentText(p: Double): String = "%.0f%%".format(p)
 
 /** Asked once, after the first finished session: does the player want to appear on the Top players list? */
 @Composable
-private fun LeaderboardJoinDialog(onJoin: (String) -> Unit, onDecline: () -> Unit) {
+internal fun LeaderboardJoinDialog(onJoin: (String) -> Unit, onDecline: () -> Unit) {
     var name by remember {
         val saved = AppSettings()
         mutableStateOf(if (saved.isDefaultPlayerName) "" else saved.playerName)
@@ -428,7 +437,9 @@ private fun InfoBar(s: TableState, bounds: TourBounds, onAdvice: (() -> Unit)?) 
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = listOf(
-                    stringResource(R.string.solo_board_of, s.boardNumber, s.sessionSize),
+                    // a season game names its session: the deal sequence runs on across sessions
+                    (s.seasonSession?.let { stringResource(R.string.season_session_fmt, it) + "  •  " } ?: "") +
+                        stringResource(R.string.solo_board_of, s.boardNumber, s.sessionSize),
                     stringResource(R.string.solo_dealer, seatLetter(s.dealer)),
                     stringResource(R.string.solo_vul, vulnerabilityText(s.vulnerability))
                 ).joinToString("  •  "),
@@ -507,7 +518,11 @@ private fun SessionDialog(s: TableState, onNew: () -> Unit, onClose: () -> Unit,
                 }
             }
         },
-        confirmButton = { Button(onClick = onNew) { Text(stringResource(R.string.solo_session_new)) } },
+        confirmButton = {
+            Button(onClick = onNew) {
+                Text(stringResource(if (s.seasonSession != null) R.string.season_next_session else R.string.solo_session_new))
+            }
+        },
         dismissButton = { TextButton(onClick = onMenu) { Text(stringResource(R.string.solo_menu)) } }
     )
 }
