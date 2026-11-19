@@ -34,15 +34,32 @@ android {
         buildConfigField("String", "SCORE_SECRET", "\"$scoreSecret\"")
     }
 
-    // Real AdMob ids live in ~/.gradle/gradle.properties (never in git):
-    //   admobAppId=ca-app-pub-XXXXXXXXXXXXXXXX~NNNNNNNNNN
-    //   admobInterstitialId=ca-app-pub-XXXXXXXXXXXXXXXX/NNNNNNNNNN
+    // Real AdMob ids live in ~/.gradle/gradle.properties (never in git), under
+    // Bridge's own names: that file is shared with Preferans, whose ids are
+    // admobAppId / admobInterstitialId and must never end up in this app.
+    //   bridgeAdmobAppId=ca-app-pub-XXXXXXXXXXXXXXXX~NNNNNNNNNN
+    //   bridgeAdmobInterstitialId=ca-app-pub-XXXXXXXXXXXXXXXX/NNNNNNNNNN
     // Debug builds use Google's test ids. A release build without real ids
     // ships with ads switched off, so test ads can never reach players.
     val testAppId = "ca-app-pub-3940256099942544~3347511713"
     val testInterstitialId = "ca-app-pub-3940256099942544/1033173712"
-    val realAppId = providers.gradleProperty("admobAppId").orNull
-    val realInterstitialId = providers.gradleProperty("admobInterstitialId").orNull
+    val realAppId = providers.gradleProperty("bridgeAdmobAppId").orNull?.trim()?.takeIf { it.isNotEmpty() }
+    val realInterstitialId = providers.gradleProperty("bridgeAdmobInterstitialId").orNull?.trim()?.takeIf { it.isNotEmpty() }
+    // a wrong or placeholder value would switch ads on with an invalid id, and an invalid app id
+    // crashes the app at launch; the messages never print the value
+    if (realAppId != null && !Regex("ca-app-pub-\\d{16}~\\d{10}").matches(realAppId)) {
+        throw GradleException("bridgeAdmobAppId is not an AdMob app id (ca-app-pub-<16 digits>~<10 digits>)")
+    }
+    if (realInterstitialId != null && !Regex("ca-app-pub-\\d{16}/\\d{10}").matches(realInterstitialId)) {
+        throw GradleException("bridgeAdmobInterstitialId is not an AdMob ad unit id (ca-app-pub-<16 digits>/<10 digits>)")
+    }
+    // a copy of the Preferans ids under the Bridge names would send Bridge's ads to the wrong AdMob app
+    if (realAppId != null && realAppId == providers.gradleProperty("admobAppId").orNull) {
+        throw GradleException("bridgeAdmobAppId is the Preferans AdMob app id: create a Bridge app in AdMob")
+    }
+    if (realInterstitialId != null && realInterstitialId == providers.gradleProperty("admobInterstitialId").orNull) {
+        throw GradleException("bridgeAdmobInterstitialId is the Preferans ad unit: create a Bridge ad unit in AdMob")
+    }
 
     // Google Play upload key, kept outside the repo. In ~/.gradle/gradle.properties:
     //   bridgeStoreFile=C:/path/to/the.keystore
