@@ -18,7 +18,6 @@ import com.an0obis.bridge.monetization.BillingManager
 import com.an0obis.bridge.monetization.Engagement
 import com.an0obis.bridge.ui.BridgeTheme
 import com.an0obis.bridge.ui.MainMenuScreen
-import com.an0obis.bridge.ui.PlaceholderScreen
 import com.an0obis.bridge.model.AppSettings
 import com.an0obis.bridge.ui.misc.AboutScreen
 import com.an0obis.bridge.ui.misc.SettingsScreen
@@ -33,6 +32,7 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.an0obis.bridge.ui.misc.TutorialScreen
 import com.an0obis.bridge.ui.misc.TopPlayersScreen
+import com.an0obis.bridge.ui.online.OnlineScreen
 import com.an0obis.bridge.ui.solo.SoloScreen
 import com.an0obis.bridge.ui.misc.openStorePage
 
@@ -166,7 +166,7 @@ class MainActivity : AppCompatActivity() {
                     onDone = { navController.popBackStack() }
                 )
             }
-            composable(Routes.ONLINE) { PlaceholderScreen(getString(R.string.coming_soon)) }
+            composable(Routes.ONLINE) { OnlineScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.ABOUT) {
                 val version = try {
                     packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0"

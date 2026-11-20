@@ -78,8 +78,8 @@ Reuse plan:
   4-player table and "host leaves" were never tested (bridge needs 4 seats).
 - **Not reusable**: Preferans AI (misere, raspasy, etc.) — bridge needs its own bidding and play logic.
 
-## 8. Online play (later)
-- Asynchronous, like Preferans: move with confirmation and auto-confirmation after a timeout.
+## 8. Online play (built 2026-11-20, see section 19)
+- Like Preferans: the host's phone runs the game, the relay only passes messages; Next board with an optional auto-continue.
 - Anti-cheat for v1/v2: "impossible by game design" (hidden hands never sent to other clients; no in-game
   chat that can reveal cards). **[OPEN]** Whether to allow free chat.
 
@@ -287,3 +287,14 @@ Tested: 64 unit tests (field is repeatable and varied, claims are really sure wh
 - **Code**: `model/session/Season.kt` (`SeasonState` in `season.json`, `Seasons`: refresh from the server, scoring once per board, posting, the board cache, moves as text and replay), the season mode of `SoloViewModel` (`PlayMode.Season`: season seed and deal numbers, every move saved so a board continues where it was left), `ui/season/SeasonScreen.kt`. The screen's own writes (board, posted total, dates) re-read the file so they never put back an older copy of the game's progress.
 - **Needs before release (VPS)**: `npm run admin -- set-rotation bridge monthly` (seasons with a `{"seed": …}` payload every UTC month) and `npm run admin -- set-limits bridge --max-score 100000 --min-interval 30` (a season total in tenths soon passes 1000). Check a season → board round trip on production.
 - **Later**: the rank of the player beyond the top 10 (`around/{player}`), a season history, comparing against real players' results on the same board instead of the bot field.
+
+## 19. Online game (built 2026-11-20)
+- **Model (as in Preferans)**: host-authoritative. The host's phone runs the board (`ui/online/OnlineHost.kt`: engine, bots, claims, bot field); the PrefServer relay only seats players and passes JSON. Room seats go clockwise from the host: 0 South, 1 West, 2 North (partner), 3 East. Empty seats are bots; the host moves players with the arrows before the start.
+- **Decided with the author**: scoring = matchpoints against the bot field, 16-board sessions (like solo, nothing posted to Top players); systems = the host picks one for N-S and one for E-W when creating the game (defaults from the settings, custom systems travel in the room rules); helpers = call meanings on tap only (no advice, no guide, no undo, no concession). No ads in online games.
+- **Views**: every player sees the table from South (`turnedFor`): seats, dealer, vulnerability, scores and matchpoints are turned, and the two sides swap for East-West (their score has the sign changed, their percentage is 100 minus North-South's). Seat labels carry the player names. Guests get only what they may see (own hand, dummy after the lead).
+- **Messages** (`ui/online/OnlineWire.kt`, discriminator `t`): host → guest `state` with the whole turned table; guest → host `act` with a call/card (season move texts), `next` or `sync`. Every state carries a `step` (moves of the session); a move made on another step is ignored, so a double tap or a late resend can never become a later move.
+- **Next board**: everybody online presses it (offline players are not waited for); the room's auto-continue (off/5/10/30 s) presses it for all. After board 16 the session result is shown; only the host starts the next session.
+- **Leaving / reconnecting**: Back in a room leaves it; in a game it asks first (the host's leaving closes the game). A guest whose app was closed gets the seat back on reopening the Online screen (server grace) and the host resends the table; meanwhile the others see "Reconnecting: name".
+- **Server**: `hello` carries `game: "bridge"`; PrefServer keeps rooms of each game apart (missing = `"pref"`, so old Preferans apps are unchanged). Must be deployed before a Bridge release with online play, or Preferans players would see Bridge rooms. Debug builds can use a local relay with `-PbridgeRelayUrl=ws://10.0.2.2:8091/ws`.
+- **Tested**: unit tests (wire round trip, turning, explanations in the turned view, a whole board with a remote guest); two emulators against a local relay (lobby, seat swap, bidding and play, waiting texts, board result mirrored for E-W, host leave, guest reconnect).
+- **Later**: save and resume a hosted game; a bot taking over the seat of a player who left; chat.

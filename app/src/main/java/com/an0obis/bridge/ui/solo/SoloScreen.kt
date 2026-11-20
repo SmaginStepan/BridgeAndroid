@@ -164,7 +164,7 @@ private fun tourPieces(s: TableState, seen: Int, adviceAllowed: Boolean): List<T
  * gets the same deals and the results are compared, must call this with false.
  */
 @Composable
-fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: SoloViewModel = viewModel()) {
+fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: TableController = viewModel<SoloViewModel>()) {
     val s by vm.state.collectAsState()
     var showResult by remember(s.boardNumber) { mutableStateOf(true) }
     var explainIndex by remember(s.boardNumber) { mutableStateOf<Int?>(null) }
@@ -174,7 +174,7 @@ fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: SoloViewMo
     val activity = LocalContext.current.findActivity()
     // between a finished board and the next one: an ad, when the rules say so
     val onNext: () -> Unit = {
-        if (activity != null) AdsManager.showIfDue(activity, Engagement.state().dealsFinished) { vm.nextBoard() }
+        if (activity != null && vm.showsAds) AdsManager.showIfDue(activity, Engagement.state().dealsFinished) { vm.nextBoard() }
         else vm.nextBoard()
     }
     var rateLater by remember { mutableStateOf(false) }
@@ -252,10 +252,17 @@ fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: SoloViewMo
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Button(onClick = onNext, modifier = Modifier.weight(1f)) {
-                            Text(stringResource(if (s.isLastBoard) R.string.solo_session_result else R.string.solo_next))
+                        if (s.confirmed) {
+                            // online: this player is ready, the others have not pressed Next yet
+                            WaitingText(s, Modifier.weight(1f))
+                        } else {
+                            Button(onClick = onNext, modifier = Modifier.weight(1f)) {
+                                Text(stringResource(if (s.isLastBoard) R.string.solo_session_result else R.string.solo_next))
+                            }
                         }
-                        TextButton(onClick = onBack) { Text(stringResource(R.string.solo_menu), color = Color.White) }
+                        TextButton(onClick = onBack) {
+                            Text(stringResource(if (s.online) R.string.mp_leave else R.string.solo_menu), color = Color.White)
+                        }
                     }
                 }
             }
@@ -377,7 +384,8 @@ fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: SoloViewMo
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 8.dp)
                     )
-                    if (!rateLater && Engagement.rateBannerDue()) {
+                    if (s.confirmed) WaitingText(s, Modifier.padding(top = 8.dp))
+                    if (!s.online && !rateLater && Engagement.rateBannerDue()) {
                         RateBanner(
                             onRate = { openStorePage(context); Engagement.markRated(); rateLater = true },
                             onLater = { rateLater = true },
@@ -387,8 +395,10 @@ fun SoloScreen(onBack: () -> Unit, adviceAllowed: Boolean = true, vm: SoloViewMo
                 }
             },
             confirmButton = {
-                Button(onClick = onNext) {
-                    Text(stringResource(if (s.isLastBoard) R.string.solo_session_result else R.string.solo_next))
+                if (!s.confirmed) {
+                    Button(onClick = onNext) {
+                        Text(stringResource(if (s.isLastBoard) R.string.solo_session_result else R.string.solo_next))
+                    }
                 }
             },
             dismissButton = {
@@ -515,23 +525,48 @@ private fun SessionDialog(s: TableState, onNew: () -> Unit, onClose: () -> Unit,
                     if (s.records.size < s.sessionSize) {
                         Text(stringResource(R.string.solo_session_wait), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
                     }
+                    if (!s.canNewSession) {
+                        Text(stringResource(R.string.mp_waiting_session), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                    }
                 }
             }
         },
         confirmButton = {
-            Button(onClick = onNew) {
-                Text(stringResource(if (s.seasonSession != null) R.string.season_next_session else R.string.solo_session_new))
+            if (s.canNewSession) {
+                Button(onClick = onNew) {
+                    Text(stringResource(if (s.seasonSession != null) R.string.season_next_session else R.string.solo_session_new))
+                }
+            } else {
+                // online guests wait for the host to start the next session
+                TextButton(onClick = onClose) { Text(stringResource(R.string.close)) }
             }
         },
-        dismissButton = { TextButton(onClick = onMenu) { Text(stringResource(R.string.solo_menu)) } }
+        dismissButton = {
+            TextButton(onClick = onMenu) { Text(stringResource(if (s.online) R.string.mp_leave else R.string.solo_menu)) }
+        }
+    )
+}
+
+/** Online: who still has to press Next board. */
+@Composable
+private fun WaitingText(s: TableState, modifier: Modifier = Modifier) {
+    Text(
+        text = if (s.waitingFor.isEmpty()) stringResource(R.string.solo_waiting_next)
+        else stringResource(R.string.mp_waiting_confirm, s.waitingFor.joinToString(", ")),
+        color = AccentGold,
+        fontSize = 15.sp,
+        textAlign = TextAlign.Center,
+        modifier = modifier.padding(vertical = 10.dp)
     )
 }
 
 @Composable
 private fun SeatLabel(s: TableState, seat: Int, modifier: Modifier = Modifier) {
     val active = s.turnSeat == seat
+    // online: the player's name next to the seat letter
+    val name = s.players?.getOrNull(seat)?.name?.let { "  $it" } ?: ""
     Text(
-        text = seatLetter(seat) + if (s.seats[seat].cards == null) "  ${s.seats[seat].count}" else "",
+        text = seatLetter(seat) + name + if (s.seats[seat].cards == null) "  ${s.seats[seat].count}" else "",
         color = if (active) AccentGold else LabelColor,
         fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
         fontSize = 15.sp,
@@ -812,7 +847,14 @@ private fun StatusRow(s: TableState, bounds: TourBounds, onUndo: () -> Unit, onC
 
 @Composable
 private fun StatusLine(s: TableState) {
+    // online: who is to choose now (the declarer chooses for the dummy)
+    val chooser = s.turnSeat?.let { t ->
+        val contract = s.contract
+        if (s.phase == Phase.PLAY && contract != null && t == contract.dummy) contract.declarer else t
+    }
+    val other = chooser?.takeIf { it != Seat.SOUTH }?.let { s.players?.getOrNull(it) }?.takeIf { !it.bot }
     val text = when {
+        !s.humanToAct && other != null -> stringResource(R.string.mp_waiting_for, other.name)
         !s.humanToAct -> stringResource(R.string.solo_waiting)
         s.turnSeat == Seat.SOUTH -> stringResource(R.string.solo_your_turn)
         else -> stringResource(R.string.solo_play_dummy, seatLetter(s.turnSeat ?: Seat.NORTH))

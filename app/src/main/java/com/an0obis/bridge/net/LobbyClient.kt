@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
 enum class ConnState { Disconnected, Connecting, Connected }
 
 /**
- * Thin WebSocket wrapper around the pref-server protocol.
+ * Thin WebSocket wrapper around the relay protocol (PrefServer, shared with Preferans).
  * Incoming messages are published on [messages]; connection state on [state].
  */
 class LobbyClient(private val url: String = DEFAULT_URL) {

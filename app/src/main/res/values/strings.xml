@@ -202,7 +202,7 @@
     <string name="about_desc">A duplicate contract bridge game for your phone.</string>
     <string name="about_features">Features:</string>
     <string name="about_f1">- Duplicate bridge: bots play the same boards, and you are scored in matchpoints</string>
-    <string name="about_f2">- Solo play: you and a bot partner against two bots</string>
+    <string name="about_f2">- Solo play with a bot partner against two bots, or an online game with friends (bots fill empty seats)</string>
     <string name="about_f3">- Tap any call in the auction to see what it means, or Advice for what to bid or play and why</string>
     <string name="about_f4">- Illustrated tutorial and a guided tour of the table</string>
     <string name="about_f5">- Monthly seasons and a worldwide Top players list</string>
@@ -222,17 +222,13 @@
     <string name="mp_host_fmt">host: %s</string>
     <string name="mp_room_name">Game name</string>
     <string name="mp_your_name">Your name</string>
-    <string name="mp_seats">Players:</string>
     <string name="mp_password_optional">Password (optional)</string>
     <string name="mp_password_title">This game is protected</string>
     <string name="mp_password_label">Password</string>
     <string name="mp_join">Join</string>
-    <string name="mp_room_code_fmt">Game code: %s</string>
     <string name="mp_waiting_host">Waiting for the host to start…</string>
     <string name="mp_start">Start game</string>
     <string name="mp_add_bot">Add bot</string>
-    <string name="mp_you_deal">You deal this hand. %1$s to act</string>
-    <string name="mp_save_finish">Finish</string>
     <string name="default_player_name">Player</string>
     <string name="game_btn_offer">Offer…</string>
     <string name="offer_own_fmt">As bid (%1$d)</string>
@@ -254,15 +250,11 @@
     <string name="mp_tap_to_copy">Room code — tap to copy</string>
     <string name="mp_code_copied">Copied!</string>
     <string name="mp_waiting_confirm">Waiting for: %1$s</string>
-    <string name="mp_auto_confirm">Auto-continue confirmations:</string>
+    <string name="mp_auto_confirm">Next board for everybody after:</string>
     <string name="mp_auto_off">Off</string>
     <string name="mp_auto_sec_fmt">%1$d s</string>
     <string name="mp_reconnecting_fmt">Reconnecting: %1$s…</string>
     <string name="mp_err_host_lost">Connection to the host was lost — the room is closed.</string>
-    <string name="mp_load_scores">Load saved scores</string>
-    <string name="mp_scores_loaded_fmt">Resuming scores from %1$s</string>
-    <string name="mp_clear">Remove</string>
-    <string name="mp_no_saved_scores">No saved score sheets. Start one in the score calculator or save a score during a game.</string>
     <string name="game_btn_save_score">Save</string>
     <string name="game_score_saved">Saved</string>
     <string name="mp_kick">Kick</string>
@@ -270,17 +262,14 @@
     <string name="mp_you">(you)</string>
     <string name="mp_bot">bot</string>
     <string name="mp_offline">offline</string>
-    <string name="mp_started_stub">The game is starting! Network play arrives in the next update — the lobby is live already.</string>
     <string name="mp_err_kicked">The host removed you from the game.</string>
     <string name="mp_err_room_closed">The host left — the game was closed.</string>
     <string name="mp_err_bad_password">Wrong password.</string>
     <string name="mp_err_room_full">The game is full.</string>
     <string name="mp_err_playing">That game has already started.</string>
     <string name="mp_err_generic">Something went wrong (%s).</string>
-    <string name="mp_bad_move">That move is not allowed.</string>
     <string name="mp_waiting_for">Waiting for %s…</string>
     <string name="dealer_badge">dealer</string>
-    <string name="mp_game_over">The game is over!</string>
     <string name="score_title_fmt">Score (to %d)</string>
     <string name="score_whists">WHISTS</string>
 
@@ -318,7 +307,6 @@
     <string name="rate_banner_later">Later</string>
     <string name="menu_solo">Solo play</string>
     <string name="menu_solo_sub">you and a bot partner against two bots</string>
-    <string name="coming_soon">Coming soon</string>
     <string name="seat_n">N</string>
     <string name="seat_e">E</string>
     <string name="seat_s">S</string>
@@ -715,4 +703,19 @@
     <string name="season_system_theirs">Opponents this season: %1$s</string>
     <string name="season_not_shown">Your results are not shown on the season board.</string>
     <string name="season_join">Show my results on the board</string>
+    <!-- online game (Bridge) -->
+    <string name="mp_seat_south">South</string>
+    <string name="mp_seat_west">West</string>
+    <string name="mp_seat_north">North</string>
+    <string name="mp_seat_east">East</string>
+    <string name="mp_ns_system">North-South system (you and your partner)</string>
+    <string name="mp_ew_system">East-West system</string>
+    <string name="mp_rules_fmt">N-S: %1$s · E-W: %2$s</string>
+    <string name="mp_pairs_hint">South and North play together against West and East. Use the arrows to move players between seats: your partner sits North.</string>
+    <string name="mp_leave_title">Leave the game?</string>
+    <string name="mp_leave_host">The game runs on your phone, so it ends for everybody.</string>
+    <string name="mp_leave_guest">Your seat is kept while the game goes on, so you can come back. The others wait for your moves.</string>
+    <string name="mp_waiting_session">Waiting for the host to start the next session.</string>
+    <string name="mp_err_no_room">That game no longer exists.</string>
+    <string name="solo_waiting_next">Waiting for the others…</string>
 </resources>

@@ -93,8 +93,19 @@ data class TableState(
     /** In a season game: the number of the season session being played (null in solo play). */
     val seasonSession: Int? = null,
     /** The season ended: no new board can start. */
-    val seasonOver: Boolean = false
+    val seasonOver: Boolean = false,
+    /** Online: who sits at each seat (as this player sees the table); null in solo play. */
+    val players: List<PlayerTag>? = null,
+    /** Online, after a board: the players who have not pressed Next board yet. */
+    val waitingFor: List<String> = emptyList(),
+    /** Online: this player pressed Next board and waits for the others. */
+    val confirmed: Boolean = false,
+    /** Online, only the host starts the next session. */
+    val canNewSession: Boolean = true,
+    /** Online: counts the moves of the session, so a late or repeated move is recognised and ignored. */
+    val step: Int = 0
 ) {
+    val online: Boolean get() = players != null
     val average: Double? get() = if (records.isEmpty()) null else records.sumOf { it.percent } / records.size
     val isLastBoard: Boolean get() = boardNumber >= sessionSize
 }
@@ -119,7 +130,7 @@ sealed interface PlayMode {
  * dealt from one random seed (the same mechanism a season will use with the server's seed); every
  * board is ranked in matchpoints against a field of bot tables playing the same deal.
  */
-class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
+class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel(), TableController {
 
     companion object {
         const val SESSION_SIZE = 16
@@ -203,10 +214,10 @@ class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
     private var job: Job? = null
 
     private val _state = MutableStateFlow(buildState())
-    val state: StateFlow<TableState> = _state.asStateFlow()
+    override val state: StateFlow<TableState> = _state.asStateFlow()
 
     private val _advice = MutableStateFlow<AdviceUi>(AdviceUi.None)
-    val advice: StateFlow<AdviceUi> = _advice.asStateFlow()
+    override val advice: StateFlow<AdviceUi> = _advice.asStateFlow()
 
     /** Bumped whenever the advice is closed or becomes out of date, so a late answer is thrown away. */
     private var adviceToken = 0
@@ -258,7 +269,7 @@ class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
      * Works out what to bid or play now and why, for the player's own turn. It is shown by the
      * screen; the answer is dropped if the position changes before it is ready.
      */
-    fun requestAdvice() {
+    override fun requestAdvice() {
         if (season != null) return // no advice in a season game
         if (busy || game.phase == Phase.DONE || game.controller != human) return
         val token = ++adviceToken
@@ -275,31 +286,31 @@ class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
     }
 
     /** The system of the player and partner in this session (the guide explains it). */
-    val ourSystem: com.an0obis.bridge.model.sayc.SystemConfig get() = seating.ns.config
+    override val ourSystem: com.an0obis.bridge.model.sayc.SystemConfig get() = seating.ns.config
 
     /** The meanings of the call at [index] of this board's auction, in the system of the side that made it. */
-    fun explain(index: Int): List<Meaning> {
+    override fun explain(index: Int): List<Meaning> {
         val auction = game.auction
         return seating.explain(auction.dealer, auction.calls, index)
     }
 
     /** The player tapped the table: the finished trick goes to its winner now. */
-    fun takeTrick() {
+    override fun takeTrick() {
         if (lingering != null) takeSignal.trySend(Unit)
     }
 
-    fun closeAdvice() {
+    override fun closeAdvice() {
         adviceToken++
         _advice.value = AdviceUi.None
     }
 
-    fun onCall(call: Call) {
+    override fun onCall(call: Call) {
         if (busy || game.phase != Phase.AUCTION || game.controller != human || !game.auction.isLegal(call)) return
         closeAdvice()
         run({ doCall(call, Kind.HUMAN) })
     }
 
-    fun onCard(card: Card) {
+    override fun onCard(card: Card) {
         if (busy || game.phase != Phase.PLAY || game.controller != human) return
         if (card !in game.view().legalCards) return
         closeAdvice()
@@ -307,7 +318,7 @@ class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
     }
 
     /** Gives the remaining tricks to the opponents. */
-    fun concede() {
+    override fun concede() {
         if (busy || game.phase != Phase.PLAY || game.controller != human) return
         closeAdvice()
         game.giveRest(1 - (human and 1))
@@ -326,7 +337,7 @@ class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
     }
 
     /** Takes back the last human move, if no bot has answered it yet. */
-    fun undo() {
+    override fun undo() {
         if (!canUndoNow()) return
         closeAdvice()
         viewModelScope.launch {
@@ -348,7 +359,7 @@ class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
         }
     }
 
-    fun nextBoard() {
+    override fun nextBoard() {
         if (busy || game.phase != Phase.DONE) return
         closeAdvice()
         if (season?.let { Seasons.isOver(it) } == true) {
@@ -365,7 +376,7 @@ class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
         startBoard()
     }
 
-    fun newSession() {
+    override fun newSession() {
         closeAdvice()
         job?.cancel()
         fieldTables.cancel()
@@ -391,13 +402,13 @@ class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
         startBoard()
     }
 
-    fun dismissSummary() {
+    override fun dismissSummary() {
         showSummary = false
         publish()
     }
 
     /** The player agreed to appear on the leaderboard under [name]. */
-    fun joinLeaderboard(name: String) {
+    override fun joinLeaderboard(name: String) {
         val settings = AppSettings()
         settings.playerName = name.trim()
         GlobalScores.setLeaderboardChoice(AppSettings.POST)
@@ -406,7 +417,7 @@ class SoloViewModel(mode: PlayMode = PlayMode.Solo) : ViewModel() {
         publish()
     }
 
-    fun declineLeaderboard() {
+    override fun declineLeaderboard() {
         GlobalScores.setLeaderboardChoice(AppSettings.DECLINED)
         leaderboardChoice = AppSettings.DECLINED
         publish()

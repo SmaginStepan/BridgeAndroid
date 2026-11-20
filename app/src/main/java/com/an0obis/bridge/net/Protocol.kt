@@ -23,9 +23,10 @@ val protocolJson = Json {
 @Serializable
 @JsonClassDiscriminator("type")
 sealed interface ClientMsg {
+    /** [game] keeps Bridge rooms apart from Preferans rooms on the shared relay. */
     @Serializable
     @SerialName("hello")
-    data class Hello(val playerId: String, val name: String) : ClientMsg
+    data class Hello(val playerId: String, val name: String, val game: String = "bridge") : ClientMsg
 
     @Serializable
     @SerialName("list_rooms")

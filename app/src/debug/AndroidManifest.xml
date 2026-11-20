@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- debug builds may talk to a local test relay over plain ws:// (see bridgeRelayUrl in app/build.gradle.kts) -->
+    <application android:usesCleartextTraffic="true" />
+</manifest>

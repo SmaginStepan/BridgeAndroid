@@ -31,6 +31,9 @@ android {
         val scoreSecret = providers.gradleProperty("scoreSecret").orNull
             ?: scoreSecrets.getProperty("scoreSecret", "")
         buildConfigField("String", "SCORE_API_KEY", "\"$scoreApiKey\"")
+        // the online game's relay (shared with Preferans); debug builds may point at a test server
+        // with -PbridgeRelayUrl=ws://10.0.2.2:8091/ws, release builds always use the real one
+        buildConfigField("String", "RELAY_URL", "\"wss://preferansmaster.com/ws\"")
         buildConfigField("String", "SCORE_SECRET", "\"$scoreSecret\"")
     }
 
@@ -84,6 +87,7 @@ android {
 
     buildTypes {
         debug {
+            providers.gradleProperty("bridgeRelayUrl").orNull?.let { buildConfigField("String", "RELAY_URL", "\"$it\"") }
             buildConfigField("boolean", "ADS_ENABLED", "true")
             buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"$testInterstitialId\"")
             manifestPlaceholders["admobAppId"] = testAppId

@@ -202,7 +202,7 @@
     <string name="about_desc">Спортивный (дубликатный) бридж для вашего телефона.</string>
     <string name="about_features">Особенности:</string>
     <string name="about_f1">- Дубликатный бридж: боты играют те же раздачи, а результат считается в матчпоинтах</string>
-    <string name="about_f2">- Одиночная игра: вы и бот-партнёр против двух ботов</string>
+    <string name="about_f2">- Одиночная игра с бот-партнёром против двух ботов или сетевая игра с друзьями (свободные места занимают боты)</string>
     <string name="about_f3">- Нажмите на любую заявку в торговле, чтобы узнать её значение, или «Совет» — что заявить или сыграть и почему</string>
     <string name="about_f4">- Иллюстрированное обучение и экскурсия по столу</string>
     <string name="about_f5">- Ежемесячные сезоны и мировой список лучших игроков</string>
@@ -222,17 +222,13 @@
     <string name="mp_host_fmt">ведущий: %s</string>
     <string name="mp_room_name">Название игры</string>
     <string name="mp_your_name">Ваше имя</string>
-    <string name="mp_seats">Игроков:</string>
     <string name="mp_password_optional">Пароль (необязательно)</string>
     <string name="mp_password_title">Игра защищена паролем</string>
     <string name="mp_password_label">Пароль</string>
     <string name="mp_join">Войти</string>
-    <string name="mp_room_code_fmt">Код игры: %s</string>
     <string name="mp_waiting_host">Ждём, когда ведущий начнёт…</string>
     <string name="mp_start">Начать игру</string>
     <string name="mp_add_bot">Добавить бота</string>
-    <string name="mp_you_deal">Вы сдаёте. Ход: %1$s</string>
-    <string name="mp_save_finish">Завершить</string>
     <string name="default_player_name">Игрок</string>
     <string name="game_btn_offer">Предложить…</string>
     <string name="offer_own_fmt">При своих (%1$d)</string>
@@ -254,15 +250,11 @@
     <string name="mp_tap_to_copy">Код комнаты — нажмите, чтобы скопировать</string>
     <string name="mp_code_copied">Скопировано!</string>
     <string name="mp_waiting_confirm">Ждём: %1$s</string>
-    <string name="mp_auto_confirm">Автопродолжение подтверждений:</string>
+    <string name="mp_auto_confirm">Следующая раздача для всех через:</string>
     <string name="mp_auto_off">Выкл</string>
     <string name="mp_auto_sec_fmt">%1$d с</string>
     <string name="mp_reconnecting_fmt">Переподключение: %1$s…</string>
     <string name="mp_err_host_lost">Связь с хостом потеряна — комната закрыта.</string>
-    <string name="mp_load_scores">Загрузить пулю</string>
-    <string name="mp_scores_loaded_fmt">Продолжение пули от %1$s</string>
-    <string name="mp_clear">Убрать</string>
-    <string name="mp_no_saved_scores">Сохранённых пуль нет. Начните пулю в калькуляторе или запишите счёт во время игры.</string>
     <string name="game_btn_save_score">Сохранить</string>
     <string name="game_score_saved">Сохранено</string>
     <string name="mp_kick">Выгнать</string>
@@ -270,17 +262,14 @@
     <string name="mp_you">(вы)</string>
     <string name="mp_bot">бот</string>
     <string name="mp_offline">не в сети</string>
-    <string name="mp_started_stub">Игра начинается! Сетевая партия появится в следующем обновлении — лобби уже работает.</string>
     <string name="mp_err_kicked">Ведущий исключил вас из игры.</string>
     <string name="mp_err_room_closed">Ведущий вышел — игра закрыта.</string>
     <string name="mp_err_bad_password">Неверный пароль.</string>
     <string name="mp_err_room_full">В игре нет мест.</string>
     <string name="mp_err_playing">Эта игра уже началась.</string>
     <string name="mp_err_generic">Что-то пошло не так (%s).</string>
-    <string name="mp_bad_move">Так ходить нельзя.</string>
     <string name="mp_waiting_for">Ждём: %s…</string>
     <string name="dealer_badge">сдаёт</string>
-    <string name="mp_game_over">Партия окончена!</string>
     <string name="score_title_fmt">Счёт (до %d)</string>
     <string name="score_whists">ВИСТЫ</string>
 
@@ -318,7 +307,6 @@
     <string name="rate_banner_later">Позже</string>
     <string name="menu_solo">Одиночная игра</string>
     <string name="menu_solo_sub">вы и бот-партнёр против двух ботов</string>
-    <string name="coming_soon">Скоро</string>
     <string name="seat_n">С</string>
     <string name="seat_e">В</string>
     <string name="seat_s">Ю</string>
@@ -715,4 +703,19 @@
     <string name="season_system_theirs">Соперники в этом сезоне: %1$s</string>
     <string name="season_not_shown">Ваши результаты не показываются в таблице сезона.</string>
     <string name="season_join">Показывать мои результаты в таблице</string>
+    <!-- online game (Bridge) -->
+    <string name="mp_seat_south">Юг</string>
+    <string name="mp_seat_west">Запад</string>
+    <string name="mp_seat_north">Север</string>
+    <string name="mp_seat_east">Восток</string>
+    <string name="mp_ns_system">Система Север-Юг (вы и партнёр)</string>
+    <string name="mp_ew_system">Система Восток-Запад</string>
+    <string name="mp_rules_fmt">С-Ю: %1$s · В-З: %2$s</string>
+    <string name="mp_pairs_hint">Юг и Север играют вместе против Запада и Востока. Стрелками можно пересаживать игроков: ваш партнёр сидит на севере.</string>
+    <string name="mp_leave_title">Выйти из игры?</string>
+    <string name="mp_leave_host">Игра идёт на вашем телефоне, поэтому она закончится для всех.</string>
+    <string name="mp_leave_guest">Ваше место сохраняется, пока идёт игра, и вы можете вернуться. Остальные будут ждать ваших ходов.</string>
+    <string name="mp_waiting_session">Ждём, пока хозяин начнёт следующую сессию.</string>
+    <string name="mp_err_no_room">Этой игры больше нет.</string>
+    <string name="solo_waiting_next">Ждём остальных…</string>
 </resources>

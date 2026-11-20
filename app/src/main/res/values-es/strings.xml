@@ -202,7 +202,7 @@
     <string name="about_desc">Un juego de bridge duplicado para tu teléfono.</string>
     <string name="about_features">Características:</string>
     <string name="about_f1">- Bridge duplicado: los bots juegan las mismas manos y tu resultado se mide en matchpoints</string>
-    <string name="about_f2">- Juego en solitario: tú y un compañero bot contra dos bots</string>
+    <string name="about_f2">- Juego en solitario con un compañero bot contra dos bots, o una partida en línea con amigos (los bots ocupan los asientos libres)</string>
     <string name="about_f3">- Toca cualquier llamada de la subasta para ver su significado, o Consejo para saber qué licitar o jugar y por qué</string>
     <string name="about_f4">- Tutorial ilustrado y una visita guiada de la mesa</string>
     <string name="about_f5">- Temporadas mensuales y una lista mundial de los mejores jugadores</string>
@@ -222,17 +222,13 @@
     <string name="mp_host_fmt">anfitrión: %s</string>
     <string name="mp_room_name">Nombre de la partida</string>
     <string name="mp_your_name">Tu nombre</string>
-    <string name="mp_seats">Jugadores:</string>
     <string name="mp_password_optional">Contraseña (opcional)</string>
     <string name="mp_password_title">Esta partida está protegida</string>
     <string name="mp_password_label">Contraseña</string>
     <string name="mp_join">Entrar</string>
-    <string name="mp_room_code_fmt">Código de la partida: %s</string>
     <string name="mp_waiting_host">Esperando a que el anfitrión empiece…</string>
     <string name="mp_start">Empezar partida</string>
     <string name="mp_add_bot">Añadir bot</string>
-    <string name="mp_you_deal">Repartes esta mano. Turno de %1$s</string>
-    <string name="mp_save_finish">Terminar</string>
     <string name="default_player_name">Jugador</string>
     <string name="game_btn_offer">Proponer…</string>
     <string name="offer_own_fmt">Como declaró (%1$d)</string>
@@ -254,15 +250,11 @@
     <string name="mp_tap_to_copy">Código de sala: toca para copiar</string>
     <string name="mp_code_copied">¡Copiado!</string>
     <string name="mp_waiting_confirm">Esperando a: %1$s</string>
-    <string name="mp_auto_confirm">Autocontinuar confirmaciones:</string>
+    <string name="mp_auto_confirm">Siguiente mano para todos tras:</string>
     <string name="mp_auto_off">No</string>
     <string name="mp_auto_sec_fmt">%1$d s</string>
     <string name="mp_reconnecting_fmt">Reconectando: %1$s…</string>
     <string name="mp_err_host_lost">Se perdió la conexión con el anfitrión: la sala se cerró.</string>
-    <string name="mp_load_scores">Cargar puntuación guardada</string>
-    <string name="mp_scores_loaded_fmt">Continuar puntuación del %1$s</string>
-    <string name="mp_clear">Quitar</string>
-    <string name="mp_no_saved_scores">No hay hojas guardadas. Empieza una en la calculadora o guarda la puntuación durante una partida.</string>
     <string name="game_btn_save_score">Guardar</string>
     <string name="game_score_saved">Guardado</string>
     <string name="mp_kick">Expulsar</string>
@@ -270,17 +262,14 @@
     <string name="mp_you">(tú)</string>
     <string name="mp_bot">bot</string>
     <string name="mp_offline">desconectado</string>
-    <string name="mp_started_stub">¡La partida empieza! El juego en red llega en la próxima actualización — el lobby ya funciona.</string>
     <string name="mp_err_kicked">El anfitrión te ha expulsado de la partida.</string>
     <string name="mp_err_room_closed">El anfitrión se fue — la partida se cerró.</string>
     <string name="mp_err_bad_password">Contraseña incorrecta.</string>
     <string name="mp_err_room_full">La partida está llena.</string>
     <string name="mp_err_playing">Esa partida ya ha empezado.</string>
     <string name="mp_err_generic">Algo salió mal (%s).</string>
-    <string name="mp_bad_move">Esa jugada no está permitida.</string>
     <string name="mp_waiting_for">Esperando a %s…</string>
     <string name="dealer_badge">reparte</string>
-    <string name="mp_game_over">¡La partida ha terminado!</string>
     <string name="score_title_fmt">Puntuación (hasta %d)</string>
     <string name="score_whists">WHISTS</string>
 
@@ -318,7 +307,6 @@
     <string name="rate_banner_later">Luego</string>
     <string name="menu_solo">Juego individual</string>
     <string name="menu_solo_sub">tú y un compañero bot contra dos bots</string>
-    <string name="coming_soon">Próximamente</string>
     <string name="seat_n">N</string>
     <string name="seat_e">E</string>
     <string name="seat_s">S</string>
@@ -715,4 +703,19 @@
     <string name="season_system_theirs">Rivales de esta temporada: %1$s</string>
     <string name="season_not_shown">Tus resultados no aparecen en la tabla de la temporada.</string>
     <string name="season_join">Mostrar mis resultados en la tabla</string>
+    <!-- online game (Bridge) -->
+    <string name="mp_seat_south">Sur</string>
+    <string name="mp_seat_west">Oeste</string>
+    <string name="mp_seat_north">Norte</string>
+    <string name="mp_seat_east">Este</string>
+    <string name="mp_ns_system">Sistema de Norte-Sur (tú y tu compañero)</string>
+    <string name="mp_ew_system">Sistema de Este-Oeste</string>
+    <string name="mp_rules_fmt">N-S: %1$s · E-O: %2$s</string>
+    <string name="mp_pairs_hint">Sur y Norte juegan juntos contra Oeste y Este. Usa las flechas para cambiar a los jugadores de asiento: tu compañero se sienta al Norte.</string>
+    <string name="mp_leave_title">¿Salir de la partida?</string>
+    <string name="mp_leave_host">La partida se juega en tu teléfono, así que termina para todos.</string>
+    <string name="mp_leave_guest">Tu asiento se guarda mientras sigue la partida, así que puedes volver. Los demás esperan tus jugadas.</string>
+    <string name="mp_waiting_session">Esperando a que el anfitrión empiece la siguiente sesión.</string>
+    <string name="mp_err_no_room">Esa partida ya no existe.</string>
+    <string name="solo_waiting_next">Esperando a los demás…</string>
 </resources>
