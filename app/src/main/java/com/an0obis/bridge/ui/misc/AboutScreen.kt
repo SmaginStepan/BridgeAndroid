@@ -46,6 +46,7 @@ fun AboutScreen(versionName: String) {
         Text(stringResource(R.string.about_features), modifier = Modifier.padding(top = 12.dp))
         Text(stringResource(R.string.about_f1), modifier = Modifier.padding(start = 16.dp, top = 6.dp))
         Text(stringResource(R.string.about_f2), modifier = Modifier.padding(start = 16.dp, top = 6.dp))
+        Text(stringResource(R.string.about_f6), modifier = Modifier.padding(start = 16.dp, top = 6.dp))
         Text(stringResource(R.string.about_f3), modifier = Modifier.padding(start = 16.dp, top = 6.dp))
         Text(stringResource(R.string.about_f4), modifier = Modifier.padding(start = 16.dp, top = 6.dp))
         Text(stringResource(R.string.about_f5), modifier = Modifier.padding(start = 16.dp, top = 6.dp))
